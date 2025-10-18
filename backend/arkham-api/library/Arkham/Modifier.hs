@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -O0 -fomit-interface-pragmas -fno-specialise #-}
 
 module Arkham.Modifier where
 
@@ -58,6 +59,7 @@ data ModifierType
   | AdditionalActionCostOf ActionTarget Int
   | AdditionalActions Text Source Int
   | AdditionalCost Cost
+  | NoAdditionalCosts
   | AdditionalPlayCostOf ExtendedCardMatcher Cost
   | AdditionalCostToCommit InvestigatorId Cost
   | AdditionalCostToEnter Cost
@@ -87,6 +89,7 @@ data ModifierType
   | AsIfInHandForPlay CardId
   | AsIfUnderControlOf InvestigatorId
   | AsIfTurn InvestigatorId
+  | EnemyAttacksOverride InvestigatorMatcher
   | AttackDealsEitherDamageOrHorror
   | AttacksCannotBeCancelled
   | Barricades [LocationId]
@@ -211,6 +214,7 @@ data ModifierType
   | CannotSpendClues
   | CannotSpendKeys
   | CannotTakeKeys
+  | CannotLeavePlay
   | CannotTakeAction ActionTarget
   | CannotTakeControlOfClues
   | CannotTriggerAbilityMatching AbilityMatcher
@@ -226,6 +230,7 @@ data ModifierType
   | ChuckFergus2Modifier CardMatcher Int -- Used by Chuck Fergus (2), check for notes
   | CommitCost Cost
   | ConnectedToWhen LocationMatcher LocationMatcher
+  | ForMovementConnectedToWhen LocationMatcher LocationMatcher
   | ControlledAssetsCannotReady
   | CountAllDoomInPlay
   | CountsAsInvestigatorForHunterEnemies
@@ -258,6 +263,9 @@ data ModifierType
   | DoubleSuccess
   | DuringEnemyPhaseMustMoveToward Target
   | EffectsCannotBeCanceled
+  | CannotCancelCardOrGameEffects
+  | CannotIgnoreCardOrGameEffects
+  | DrawGainsPeril
   | EnemyEngageActionCriteria CriteriaOverride
   | EnemyEvade Int
   | SwapFightAndEvade
@@ -267,6 +275,7 @@ data ModifierType
   | EnemyFightActionCriteria CriteriaOverride
   | EnemyFightWithMin Int (Min Int)
   | EntersPlayWithDoom Int
+  | CanEvadeOverride CriteriaOverride
   | ExhaustIfDefeated
   | ExtraResources Int
   | FailTies
@@ -311,6 +320,7 @@ data ModifierType
   | IgnorePlayableModifierContexts
   | IgnoreRetaliate
   | IgnoreRevelation
+  | RevelationModifier Source ModifierType
   | IgnoreText
   | IgnoreTextOnLocation LocationMatcher
   | InVictoryDisplayForCountingVengeance
@@ -330,6 +340,7 @@ data ModifierType
   | MayChooseNotToTakeUpkeepResources
   | MayChooseToRemoveChaosToken InvestigatorId
   | MayIgnoreAttacksOfOpportunity
+  | MayIgnoreAttacksOfOpportunityOf EnemyMatcher
   | MayIgnoreLocationEffectsAndKeywords
   | MetaModifier Value
   | ModifierIfSucceededBy Int Modifier
@@ -364,6 +375,7 @@ data ModifierType
   | RemoveSkillIcons [SkillIcon]
   | RemoveTrait Trait
   | ReplaceAllSkillIconsWithWild
+  | SkillIconsSubtract
   | ResolveEffectsAgain -- NOTE: If used for more than Tekelili, need to figure out what to do
   | ResolveEffectsAgainMatch CardMatcher -- NOTE: If used for more than Tekelili, need to figure out what to do
   | ResolvesFailedEffects
@@ -428,6 +440,7 @@ data UIModifier
   = Ethereal -- from Ethereal Form
   | Explosion -- from Dyanamite Blast
   | Locus -- from Prophesiae Profana
+  | ImportantToScenario Text -- from Threads of Fate
   deriving stock (Show, Eq, Ord, Data)
 
 instance IsLabel "combat" (Int -> ModifierType) where
@@ -447,6 +460,15 @@ instance IsLabel "willpower" (Int -> ModifierType) where
 
 instance IsLabel "damage" (Int -> ModifierType) where
   fromLabel = DamageDealt
+
+instance IsLabel "noAction" ModifierType where
+  fromLabel = ActionCostModifier (-1)
+
+instance IsLabel "retaliate" ModifierType where
+  fromLabel = AddKeyword Retaliate
+
+instance IsLabel "alert" ModifierType where
+  fromLabel = AddKeyword Alert
 
 data Modifier = Modifier
   { modifierSource :: Source

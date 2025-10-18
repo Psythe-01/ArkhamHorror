@@ -120,9 +120,10 @@ targetToSource = \case
   SkillTestTarget sid -> SkillTestSource sid
   TreacheryTarget tid -> TreacherySource tid
   EncounterDeckTarget -> error "can not covert"
-  ScenarioDeckTarget -> error "can not covert"
+  ScenarioDeckTarget _ -> error "can not covert"
   AgendaTarget aid -> AgendaSource aid
   ActTarget aid -> ActSource aid
+  KeyTarget {} -> error "can not convert"
   CardIdTarget cid -> CardIdSource cid
   CardCostTarget cid -> CardCostSource cid
   CardCodeTarget ccode -> CardCodeSource ccode

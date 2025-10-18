@@ -22,19 +22,19 @@ import Arkham.Random
 import Arkham.SkillTest.Base
 import Arkham.Target
 import Arkham.Window
-import Control.Monad.Random
 
 withActiveInvestigator
-  :: HasGame m => InvestigatorId -> (forall t. (MonadTrans t, HasGame (t m)) => t m a) -> m a
+  :: HasGame m => InvestigatorId -> ReaderT Game m a -> m a
 withModifiers'
   :: (Targetable target, HasGame m)
   => target
   -> m [Modifier]
-  -> (forall t. (MonadTrans t, HasGame (t m)) => t m a)
+  -> ReaderT Game m a
   -> m a
 getAllModifiers :: HasGame m => m (Map Target [Modifier])
 getActiveAbilities :: HasGame m => m [Ability]
 getPhase :: HasGame m => m Phase
+getEnemyPhaseStep :: HasGame m => m (Maybe EnemyPhaseStep)
 getCurrentBatchId :: HasGame m => m (Maybe BatchId)
 getWindowDepth :: HasGame m => m Int
 getDepthLock :: HasGame m => m Int
@@ -66,3 +66,4 @@ runWithEnv
      )
   => GameT a
   -> m a
+getTurnOrder :: HasGame m => m [InvestigatorId]

@@ -12,6 +12,7 @@ import {
   provide
 } from 'vue';
 import { type Game } from '@/arkham/types/Game';
+import { type Enemy } from '@/arkham/types/Enemy';
 import { type Scenario } from '@/arkham/types/Scenario';
 import { type Card } from '@/arkham/types/Card';
 import { TarotCard, tarotCardImage } from '@/arkham/types/TarotCard';
@@ -23,13 +24,14 @@ import { MessageType } from '@/arkham/types/Message';
 import { waitForImagesToLoad, imgsrc, pluralize, groupBy } from '@/arkham/helpers';
 import { useMenu } from '@/composeable/menu';
 import { useSettings } from '@/stores/settings';
+import { keyToId } from '@/arkham/types/Key'
 import AbilityButton from '@/arkham/components/AbilityButton.vue'
 import Act from '@/arkham/components/Act.vue';
 import CardView from '@/arkham/components/Card.vue';
 import Draggable from '@/components/Draggable.vue';
 import ChaosBag from '@/arkham/components/ChaosBag.vue';
 import Agenda from '@/arkham/components/Agenda.vue';
-import Enemy from '@/arkham/components/Enemy.vue';
+import EnemyView from '@/arkham/components/Enemy.vue';
 import CardRow from '@/arkham/components/CardRow.vue';
 import Key from '@/arkham/components/Key.vue';
 import PlayerTabs from '@/arkham/components/PlayerTabs.vue';
@@ -40,6 +42,7 @@ import VictoryDisplay from '@/arkham/components/VictoryDisplay.vue';
 import SkillTest from '@/arkham/components/SkillTest.vue';
 import ScenarioDeck from '@/arkham/components/ScenarioDeck.vue';
 import Story from '@/arkham/components/Story.vue';
+import Asset from '@/arkham/components/Asset.vue';
 import Location from '@/arkham/components/Location.vue';
 import TreacheryView from '@/arkham/components/Treachery.vue';
 import * as ArkhamGame from '@/arkham/types/Game';
@@ -184,95 +187,59 @@ const abilities = computed(() => {
     }, []);
 })
 
-const locationStyles = computed(() => {
+const gridAreas = computed(()=>{
   const { locationLayout } = props.scenario
   if (!locationLayout) return null
-  let cleaned = locationLayout
 
-  if (barriers.value) {
-    let grid = {};
-    locationLayout.forEach((row) => {
-      row.split(' ').forEach((cell) => {
-        const location = locations.value.find((l) => l.label === cell);
-        if (!location) return;
-        grid[cell] = location.id;
-      });
-    });
+  // fast path when no barriers meta
+  if (!barriers.value) return locationLayout.map(row => `"${row}"`).join(' ')
 
-    // Process rows to insert barriers
-    const cleanedRows = locationLayout.map((row) => row.split(' '));
-    let newCleanedRows = [];
+  const grid: any = {}
+  for (const l of locations.value) grid[l.label] = l.id
 
-    for (let rowIndex = 0; rowIndex < cleanedRows.length; rowIndex++) {
-      const row = cleanedRows[rowIndex];
-      let newRow = [];
-
-      for (let colIndex = 0; colIndex < row.length; colIndex++) {
-        const cell = row[colIndex];
-        newRow.push(cell);
-
-        // Check for horizontal barriers
-        if (colIndex < row.length - 1) {
-          const cellA = cell;
-          const cellB = row[colIndex + 1];
-          const idA = grid[cellA];
-          const idB = grid[cellB];
-          if (idA && idB) {
-            const ids = `barrier-${[idA, idB].sort().join('--')}`;
-            newRow.push(ids); // Insert barrier
-          } else {
-            newRow.push('.'); // Insert period
-          }
-        }
-      }
-      newCleanedRows.push(newRow);
-    }
-
-    // Now process columns to insert vertical barriers
-    let finalRows = [];
-
-    for (let rowIndex = 0; rowIndex < newCleanedRows.length; rowIndex++) {
-      const row = newCleanedRows[rowIndex];
-      finalRows.push(row);
-
-      // Check if we need to insert a row of barriers below this row
-      if (rowIndex < newCleanedRows.length - 1) {
-        const nextRow = newCleanedRows[rowIndex + 1];
-        let barrierRow = [];
-        let needBarrierRow = false;
-
-        for (let colIndex = 0; colIndex < row.length; colIndex++) {
-          const cellA = row[colIndex];
-          const cellB = nextRow[colIndex];
-          const idA = grid[cellA];
-          const idB = grid[cellB];
-
-          if (idA && idB) {
-            const ids = `barrier-${[idA, idB].sort().join('--')}`;
-            barrierRow.push(ids); // Insert vertical barrier
-            needBarrierRow = true;
-          } else {
-            barrierRow.push('.'); // Insert period
-          }
-        }
-
-        if (needBarrierRow) {
-          finalRows.push(barrierRow);
-        }
+  const cleanedRows = locationLayout.map(r => r.split(' '))
+  const withHoriz: string[][] = []
+  for (const row of cleanedRows) {
+    const newRow: string[] = []
+    for (let c = 0; c < row.length; c++){
+      const a = row[c]
+      newRow.push(a)
+      if (c < row.length - 1){
+        const b = row[c + 1]
+        const idA = grid[a], idB = grid[b]
+        newRow.push(idA && idB ? `barrier-${[idA,idB].sort().join('--')}` : '.')
       }
     }
-
-    // Update the 'cleaned' variable
-    cleaned = finalRows.map((row) => row.join(' '));
+    withHoriz.push(newRow)
   }
-
-  return {
-    display: 'grid',
-    gap: '20px',
-    'grid-template-areas': cleaned.map((row) => `"${row}"`).join(' '),
-    zoom: locationsZoom.value
+  const finalRows: string[][] = []
+  for (let r = 0; r < withHoriz.length; r++){
+    const row = withHoriz[r]
+    finalRows.push(row)
+    if (r < withHoriz.length - 1){
+      const next = withHoriz[r + 1]
+      let need = false
+      const barrierRow = row.map((cell, idx) => {
+        const a = row[idx], b = next[idx]
+        const idA = grid[a], idB = grid[b]
+        const v = idA && idB ? `barrier-${[idA,idB].sort().join('--')}` : '.'
+        if (v !== '.') need = true
+        return v
+      })
+      if (need) finalRows.push(barrierRow)
+    }
   }
+  return finalRows.map(r => `"${r.join(' ')}"`).join(' ')
 })
+
+// keep object identity stable; only its fields change
+const locationStyles = computed(()=>({
+  display:'grid',
+  gap:'20px',
+  'grid-template-areas': gridAreas.value ?? '',
+  zoom: locationsZoom.value
+}))
+
 const scenarioDeckStyles = computed(() => {
   const { decksLayout } = props.scenario
   return {
@@ -284,7 +251,34 @@ const scenarioDeckStyles = computed(() => {
 const players = computed(() => props.game.investigators)
 const playerOrder = computed(() => props.game.playerOrder)
 const discards = computed<Card[]>(() => props.scenario.discard.map(c => ({ tag: 'EncounterCard', contents: c })))
-const outOfPlayEnemies = computed(() => Object.values(props.game.enemies).filter(e => e.placement.tag === 'OutOfPlay'))
+
+const enemyGroups = computed(()=>{
+  const all = Object.values(props.game.enemies)
+  const outOfPlay: Enemy[] = []
+  const pursuit: Enemy[] = []
+  const global: Enemy[] = []
+  const asLoc: Enemy[] = []
+  let firstVoid: Enemy|undefined
+
+  for (const e of all) {
+    const p = e.placement
+    if (p.tag === 'OutOfPlay') {
+      outOfPlay.push(e)
+      if (!firstVoid && (p.contents === 'VoidZone' || p.contents === 'TheDepths')) firstVoid = e
+      if (p.contents === 'PursuitZone') pursuit.push(e)
+    }
+    if (p.tag === 'OtherPlacement' && p.contents === 'Global' && e.asSelfLocation === null) global.push(e)
+    if (e.asSelfLocation !== null) asLoc.push(e)
+  }
+  return { outOfPlay, pursuit, global, asLoc, firstVoid }
+})
+
+const outOfPlayEnemies = computed(() => enemyGroups.value.outOfPlay)
+const pursuit = computed(() => enemyGroups.value.pursuit)
+const globalEnemies = computed(() => enemyGroups.value.global)
+const enemiesAsLocations = computed(() => enemyGroups.value.asLoc)
+const topEnemyInVoid = computed(() => enemyGroups.value.firstVoid)
+
 const outOfPlay = computed(() => props.scenario?.setAsideCards || [])
 const removedFromPlay = computed(() => props.game.removedFromPlay)
 const noCards = computed<Card[]>(() => [])
@@ -302,21 +296,13 @@ const topOfSpectralDiscard = computed(() => {
   const { cardCode } = spectralDiscard.value[0]
   return imgsrc(`cards/${cardCode.replace('c', '')}.avif`)
 })
-const topEnemyInVoid = computed(() => {
-  const inVoidEnemy = Object.values(props.game.enemies).filter((e) => e.placement.tag === 'OutOfPlay' && (['VoidZone', 'TheDepths'] as string[]).includes(e.placement.contents))[0]
-  return inVoidEnemy
-})
 const activePlayerId = computed(() => props.game.activeInvestigatorId)
-const pursuit = computed(() => Object.values(outOfPlayEnemies.value).filter((enemy) =>
-  enemy.placement.tag === 'OutOfPlay' && enemy.placement.contents === 'PursuitZone'
-))
-const globalEnemies = computed(() => Object.values(props.game.enemies).filter((enemy) =>
-  enemy.placement.tag === "OtherPlacement" && enemy.placement.contents === "Global" && enemy.asSelfLocation === null
-))
 const globalStories = computed(() => Object.values(props.game.stories).filter((story) =>
   story.placement.tag === "OtherPlacement" && story.placement.contents === "Global"
 ))
-const enemiesAsLocations = computed(() => Object.values(props.game.enemies).filter((enemy) => enemy.asSelfLocation !== null))
+const globalAssets = computed(() => Object.values(props.game.assets).filter((asset) => 
+  asset.placement.tag === "OtherPlacement" && asset.placement.contents === "Global"
+))
 const cardsUnderScenarioReference = computed(() => props.scenario.cardsUnderScenarioReference)
 const cardsUnderAgenda = computed(() => props.scenario.cardsUnderAgendaDeck)
 const cardsUnderAct = computed(() => props.scenario.cardsUnderActDeck)
@@ -340,12 +326,14 @@ const unusedLabels = computed(() => {
 })
 const choices = computed(() => ArkhamGame.choices(props.game, props.playerId))
 const resources = computed(() => props.scenario.tokens[TokenType.Resource])
-const hasPool = computed(() => resources.value && resources.value > 0)
+const damage = computed(() => props.scenario.tokens[TokenType.Damage])
+const hasPool = computed(() => resources.value && resources.value > 0 || damage.value && damage.value > 0)
 const tarotCards = computed(() => props.scenario.tarotCards.filter((c) => c.scope.tag === 'GlobalTarot'))
 const phase = computed(() => props.game.phase)
 const phaseStep = computed(() => props.game.phaseStep)
 const currentDepth = computed(() => props.scenario.counts["CurrentDepth"])
 const signOfTheGods = computed(() => props.scenario.counts["SignOfTheGods"])
+const distortion = computed(() => props.scenario.counts["Distortion"])
 const gameOver = computed(() => props.game.gameState.tag === "IsOver")
 
 // Reactive
@@ -371,6 +359,9 @@ watchEffect(() => {
 
   const isOutOfPlaySource = (source: Source) => {
     switch (source.tag) {
+      case "EnemySource": {
+       return outOfPlayEnemies.value.some((e) => e.id == source.contents)
+      }
       case "TreacherySource": {
        return outOfPlayEnemies.value.some((e) => {
           if (source.contents) return e.treacheries.includes(source.contents)
@@ -541,6 +532,11 @@ function minimize_SkillTest(isMinimized:boolean){
     isMinimized_SkillTest.value = isMinimized
   }
 }
+
+const blessTokens = computed(() => props.scenario.chaosBag.chaosTokens.filter((t) => t.face === 'BlessToken'
+).length)
+const curseTokens = computed(() => props.scenario.chaosBag.chaosTokens.filter((t) => t.face === 'CurseToken').length)
+const frostTokens = computed(() => props.scenario.chaosBag.chaosTokens.filter((t) => t.face === 'FrostToken').length)
 </script>
 
 <template>
@@ -555,7 +551,7 @@ function minimize_SkillTest(isMinimized:boolean){
           <div v-for="card in outOfPlay" :key="card.id" class="card-row-card">
             <CardView :game="game" :card="card" :playerId="playerId" @choose="$emit('choose', $event)" />
           </div>
-          <Enemy
+          <EnemyView
             v-for="enemy in outOfPlayEnemies"
             :key="enemy.id"
             :enemy="enemy"
@@ -570,11 +566,103 @@ function minimize_SkillTest(isMinimized:boolean){
         <template #handle><header><h2>{{$t('gameBar.chaosBag')}}</h2></header></template>
         <ChaosBag :game="game" :skillTest="null" :chaosBag="scenario.chaosBag" :playerId="playerId" @choose="choose" />
         <div v-if="debug.active" class="buttons buttons-row">
-          <button class="button blessed" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'BlessToken'})">{{$t('gameBar.add')}} <span class="bless-icon"></span></button>
-          <button class="button cursed" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'CurseToken'})">{{$t('gameBar.add')}} <span class="curse-icon"></span></button>
-          <button class="button frost" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'FrostToken'})">{{$t('gameBar.add')}} <span class="frost-icon"></span></button>
+          <div class="tri-button blessed">
+            <button class="button blessed" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'BlessToken'})">-</button>
+            <span class="bless-icon"></span>
+            <button class="button blessed" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'BlessToken'})">+</button>
+          </div>
+          <div class="tri-button cursed">
+            <button class="button cursed" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'CurseToken'})">-</button>
+            <span class="curse-icon"></span>
+            <button class="button cursed" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'CurseToken'})">+</button>
+          </div>
+          <div class="tri-button frost">
+            <button class="button frost" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'FrostToken'})">-</button>
+            <span class="frost-icon"></span>
+            <button class="button frost" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'FrostToken'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'PlusOne'})">-</button>
+            <span>+1</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'PlusOne'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'Zero'})">-</button>
+            <span>0</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'Zero'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusOne'})">-</button>
+            <span>-1</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusOne'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusTwo'})">-</button>
+            <span>-2</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusTwo'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusThree'})">-</button>
+            <span>-3</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusThree'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusFour'})">-</button>
+            <span>-4</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusFour'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusFive'})">-</button>
+            <span>-5</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusFive'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusSix'})">-</button>
+            <span>-6</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusSix'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusSeven'})">-</button>
+            <span>-7</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusSeven'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'MinusEight'})">-</button>
+            <span>-8</span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'MinusEight'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'Skull'})">-</button>
+            <span class="skull-icon"></span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'Skull'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'Cultist'})">-</button>
+            <span class="cultist-icon"></span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'Cultist'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'Tablet'})">-</button>
+            <span class="tablet-icon"></span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'Tablet'})">+</button>
+          </div>
+          <div class="tri-button">
+            <button class="button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'ElderThing'})">-</button>
+            <span class="elder-thing-icon"></span>
+            <button class="button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'ElderThing'})">+</button>
+          </div>
+          <div class="tri-button elder-sign-button">
+            <button class="button elder-sign-button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'ElderSign'})">-</button>
+            <span class="elder-sign"></span>
+            <button class="button elder-sign-button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'ElderSign'})">+</button>
+          </div>
+          <div class="tri-button auto-fail-button">
+            <button class="button auto-fail-button" @click="debug.send(game.id, {tag: 'RemoveChaosToken', contents: 'AutoFail'})">-</button>
+            <span class="auto-fail"></span>
+            <button class="button auto-fail-button" @click="debug.send(game.id, {tag: 'AddChaosToken', contents: 'AutoFail'})">+</button>
+          </div>
         </div>
-        <button class="button" @click="showChaosBag = false">{{$t('close')}}</button>
+        <button class="button close-button" @click="showChaosBag = false">{{$t('close')}}</button>
       </Draggable>
       <CardRow
         v-if="showCards.ref.length > 0"
@@ -599,7 +687,7 @@ function minimize_SkillTest(isMinimized:boolean){
           </div>
         </div>
         <div v-if="topEnemyInVoid">
-          <Enemy
+          <EnemyView
             :enemy="topEnemyInVoid"
             :game="game"
             :playerId="playerId"
@@ -607,9 +695,13 @@ function minimize_SkillTest(isMinimized:boolean){
           />
         </div>
         <ScenarioDeck
-          :deck="scenarioDeck"
-          :key="scenarioDeck[0]"
           v-for="[,scenarioDeck] in scenarioDecks"
+          :key="scenarioDeck[0]"
+          :deck="scenarioDeck"
+          :game="game"
+          :playerId="playerId"
+          @choose="choose"
+          @show="doShowCards"
         />
         <VictoryDisplay :game="game" :victoryDisplay="victoryDisplay" @show="showVictoryDisplay" @choose="choose" :playerId="playerId" />
         <div class="scenario-encounter-decks">
@@ -702,7 +794,7 @@ function minimize_SkillTest(isMinimized:boolean){
           />
         </div>
 
-        <Enemy
+        <EnemyView
           v-for="enemy in pursuit"
           :key="enemy.id"
           :enemy="enemy"
@@ -711,7 +803,7 @@ function minimize_SkillTest(isMinimized:boolean){
           @choose="choose"
         />
 
-        <Enemy
+        <EnemyView
           v-for="enemy in globalEnemies"
           :key="enemy.id"
           :enemy="enemy"
@@ -724,6 +816,15 @@ function minimize_SkillTest(isMinimized:boolean){
           v-for="story in globalStories"
           :key="story.id"
           :story="story"
+          :game="game"
+          :playerId="playerId"
+          @choose="choose"
+        />
+
+        <Asset
+          v-for="asset in globalAssets"
+          :key="asset.id"
+          :asset="asset"
           :game="game"
           :playerId="playerId"
           @choose="choose"
@@ -753,15 +854,29 @@ function minimize_SkillTest(isMinimized:boolean){
             </div>
             <PoolItem class="depth" v-if="currentDepth" type="resource" :amount="currentDepth" />
             <div class="spent-keys" v-if="spentKeys.length > 0">
-              <Key v-for="key in spentKeys" :key="key" :name="key" />
+              <Key v-for="key in spentKeys" :key="keyToId(key)" :name="key" :game="game" :playerId="playerId" @choose="choose" />
             </div>
-            <PoolItem class="signOfTheGods" v-if="signOfTheGods" type="resource" :amount="signOfTheGods" />
+            <PoolItem
+              v-if="signOfTheGods"
+              class="signOfTheGods"
+              type="resource"
+              tooltip="Sign of the Gods"
+              :amount="signOfTheGods"
+            />
+            <PoolItem
+              v-if="distortion"
+              class="distortion"
+              type="damage"
+              tooltip="Distortion"
+              :amount="distortion"
+            />
           </div>
           <div class="pool" v-if="hasPool">
             <PoolItem v-if="resources && resources > 0" type="resource" :amount="resources" />
+            <PoolItem v-if="damage && damage > 0" type="damage" :amount="damage" />
           </div>
           <div class="keys" v-if="keys.length > 0">
-            <Key v-for="key in keys" :key="key" :name="key" />
+            <Key v-for="key in keys" :key="keyToId(key)" :name="key" :game="game" :playerId="playerId" @choose="choose" />
           </div>
           <button v-if="cardsUnderScenarioReference.length > 0" class="view-cards-under-button" @click="showCardsUnderScenarioReference">{{viewUnderScenarioReference}}</button>
         </div>
@@ -772,7 +887,6 @@ function minimize_SkillTest(isMinimized:boolean){
             :skillTest="game.skillTest"
             :playerId="playerId"
             @choose="choose"
-            @minimize="minimize_SkillTest"
         >
         </SkillTest>
 
@@ -792,8 +906,9 @@ function minimize_SkillTest(isMinimized:boolean){
             :location="location"
             :style="{ 'grid-area': location.label, 'justify-self': 'center' }"
             @choose="choose"
+            @show="doShowCards"
           />
-          <Enemy
+          <EnemyView
             v-for="enemy in enemiesAsLocations"
             :key="enemy.id"
             :enemy="enemy"
@@ -827,15 +942,24 @@ function minimize_SkillTest(isMinimized:boolean){
         </transition-group>
       </div>
 
-      <PlayerTabs
-        :game="game"
-        :playerId="playerId"
-        :players="players"
-        :playerOrder="playerOrder"
-        :activePlayerId="activePlayerId"
-        :tarotCards="props.scenario.tarotCards"
-        @choose="choose"
-      />
+      <div id="player-zone">
+        <PlayerTabs
+          :game="game"
+          :playerId="playerId"
+          :players="players"
+          :playerOrder="playerOrder"
+          :activePlayerId="activePlayerId"
+          :tarotCards="props.scenario.tarotCards"
+          @choose="choose"
+        />
+        <div id="totals">
+          <PoolItem type="doom" :amount="game.totalDoom" tooltip="Total Doom" />
+          <PoolItem type="clue" :amount="game.totalClues" tooltip="Total Spendable Clues" />
+          <PoolItem v-if="blessTokens > 0" type="ct_bless" :amount="blessTokens" />
+          <PoolItem v-if="curseTokens > 0" type="ct_curse" :amount="curseTokens" />
+          <PoolItem v-if="frostTokens > 0" type="ct_frost" :amount="frostTokens" />
+        </div>
+      </div>
     </div>
     <div class="phases">
       <div class="phase" :class="{ 'active-phase': phase == 'MythosPhase' }">
@@ -888,7 +1012,7 @@ function minimize_SkillTest(isMinimized:boolean){
   </div>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .card {
   border-radius: 5px;
   width: var(--card-width);
@@ -954,7 +1078,19 @@ function minimize_SkillTest(isMinimized:boolean){
   }
 }
 
-@mixin splitView {
+.scenario-body {
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  z-index: 1;
+  width: 100%;
+  flex: 1;
+  inset: 0;
+
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+
+  &.split-view {
     grid-template-columns: 1fr 2fr;
     grid-template-rows: 1fr 3fr;
     padding-bottom: 10px;
@@ -1001,22 +1137,6 @@ function minimize_SkillTest(isMinimized:boolean){
       grid-column: 2;
       grid-row: 1 / 5;
     }
-}
-
-.scenario-body {
-  display: flex;
-  flex-direction: column;
-  background: var(--background);
-  z-index: 1;
-  width: 100%;
-  flex: 1;
-  inset: 0;
-
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-
-  &.split-view {
-    @include splitView;
   }
 }
 
@@ -1231,6 +1351,7 @@ function minimize_SkillTest(isMinimized:boolean){
   display: flex;
   flex-direction: column;
   position: relative;
+  isolation: isolate;
 
   .depth {
     position: absolute;
@@ -1241,6 +1362,23 @@ function minimize_SkillTest(isMinimized:boolean){
   }
 
   .signOfTheGods {
+    z-index: 10;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    pointer-events: none;
+  }
+
+  .distortion {
+    z-index: 10;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    pointer-events: none;
+  }
+
+  .pool {
+    z-index: 10;
     position: absolute;
     bottom: 0;
     right: 0;
@@ -1295,7 +1433,7 @@ function minimize_SkillTest(isMinimized:boolean){
   pointer-events: none;
 
   * {
-    transform: scale(0.6);
+    transform: scale(0.9);
   }
 }
 
@@ -1361,14 +1499,17 @@ function minimize_SkillTest(isMinimized:boolean){
   margin-inline: 10px;
 }
 
-// We lower the margin so things line up a bit better.
+/* We lower the margin so things line up a bit better. */
 [data-scenario='c06333'] .location-cards:deep(.location-container) {
   margin: 20px !important;
 }
 
 .buttons-row {
+  padding: 10px;
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-around;
 
   .blessed {
     background-color: var(--blessed);
@@ -1378,10 +1519,21 @@ function minimize_SkillTest(isMinimized:boolean){
     background-color: var(--cursed);
   }
 
+  .auto-fail-button {
+    background-color: var(--auto-fail);
+  }
+
+  .elder-sign-button {
+    background-color: var(--elder-sign);
+  }
+
   .frost {
     background-color: var(--frost);
   }
 
+  button {
+    margin: 0;
+  }
 }
 
 .button {
@@ -1500,7 +1652,7 @@ function minimize_SkillTest(isMinimized:boolean){
   &:not(:first-of-type) {
     margin-top: -50px;
   }
-  //position: inherit;
+  /*position: inherit; */
   transition: margin-top 0.3s;
   position: relative;
 
@@ -1534,6 +1686,92 @@ function minimize_SkillTest(isMinimized:boolean){
   img:not(:nth-of-type(1)) {
     z-index: 1;
     margin-top: calc((var(--card-width) / (3 / 2)) * -1);
+  }
+}
+
+#player-zone {
+  display: flex;
+  flex-direction: row;
+  background: var(--background-dark);
+  .player-info {
+    flex: 1;
+  }
+}
+
+#totals {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  background: darkslategrey;
+  margin-top: 10px;
+  border-top-left-radius: 10px;
+  box-shadow: -1px 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.tri-button {
+  background-color: #555;
+  color: white;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 1px 1px 6px rgba(0, 0, 0, 0.45);
+  .bless-icon, .curse-icon {
+    color: white;
+    min-width: fit-content;
+  }
+  span {
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    padding: 0 5px;
+    border-left: 1px solid rgba(0, 0, 0, 0.2);
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    justify-content: center;
+    display: flex;
+    align-items: center;
+  }
+
+  .skull-icon {
+    color: var(--skull);
+    text-shadow: 0px 0px 2px rgba(255, 255, 255, 0.5);
+  }
+
+  .tablet-icon {
+    color: var(--tablet);
+    text-shadow: 0px 0px 2px rgba(255, 255, 255, 0.5);
+  }
+
+  .cultist-icon {
+    color: var(--cultist);
+    text-shadow: 0px 0px 2px rgba(255, 255, 255, 0.5);
+  }
+
+  .elder-thing-icon {
+    color: var(--elder-thing);
+    text-shadow: 0px 0px 2px rgba(255, 255, 255, 0.5);
+  }
+
+  button {
+    width: 1em;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  button:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
+
+.close-button{
+  background: var(--button);
+  &:hover {
+    background: var(--button-highlight);
   }
 }
 </style>

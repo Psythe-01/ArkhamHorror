@@ -1,10 +1,9 @@
 module Arkham.Game.Utils where
 
 import Arkham.Act.Types (Act)
-import Arkham.Action qualified as Action
 import Arkham.ActiveCost
 import Arkham.Agenda.Types (Agenda)
-import Arkham.Asset.Types (Asset, Field (..))
+import Arkham.Asset.Types (Asset)
 import Arkham.Campaign.Types hiding (campaign, modifiersL)
 import Arkham.Card
 import Arkham.Classes.Entity
@@ -12,13 +11,14 @@ import Arkham.Classes.HasGame
 import Arkham.Classes.Query ((<=~>))
 import Arkham.Cost qualified as Cost
 import Arkham.Effect.Types (Effect)
-import Arkham.Enemy.Types (Enemy, Field (..))
+import Arkham.Enemy.Types (Enemy)
 import Arkham.Entities
 import Arkham.Event.Types (Event)
 import Arkham.Game.Base
 import Arkham.Helpers.Action (getActionCost)
 import Arkham.Helpers.Calculation
 import Arkham.Helpers.Card
+import Arkham.Helpers.Investigator (getMaybeLocation)
 import Arkham.Helpers.Modifiers
 import Arkham.Id
 import Arkham.Investigator (promoInvestigators)
@@ -27,14 +27,13 @@ import Arkham.Keyword (Sealing (..))
 import Arkham.Keyword qualified as Keyword
 import Arkham.Location.Types (Location)
 import Arkham.Matcher.Target (matchTarget)
-import Arkham.Placement
 import Arkham.Prelude
 import Arkham.Projection
 import Arkham.Scenario.Types hiding (scenario)
 import Arkham.Skill.Types (Skill)
 import Arkham.Story.Types (Story)
 import Arkham.Target
-import Arkham.Treachery.Types (Field (..), Treachery)
+import Arkham.Treachery.Types (Treachery)
 import Arkham.Window (Window)
 import Control.Lens (each)
 import Data.Text qualified as T
@@ -61,7 +60,7 @@ getInvestigatorMaybe iid = preview (entitiesL . investigatorsL . ix iid) <$> get
 getEvent :: (HasCallStack, HasGame m) => EventId -> m Event
 getEvent eid = fromJustNote missingEvent <$> getEventMaybe eid
  where
-  missingEvent = "Unknown event: " <> show eid
+  missingEvent = "Unknown event: " <> show eid <> "\n\n" <> prettyCallStack callStack
 
 getEventMaybe :: HasGame m => EventId -> m (Maybe Event)
 getEventMaybe eid = do
@@ -155,33 +154,6 @@ maybeEffect effectId = do
     $ preview (entitiesL . effectsL . ix effectId) g
     <|> getRemovedEntity effectsL effectId g
 
-getPlacementLocation :: HasGame m => Placement -> m (Maybe LocationId)
-getPlacementLocation = \case
-  AtLocation location -> pure $ Just location
-  ActuallyLocation location -> pure $ Just location
-  AttachedToLocation location -> pure $ Just location
-  InPlayArea investigator -> field InvestigatorLocation investigator
-  InThreatArea investigator -> field InvestigatorLocation investigator
-  StillInHand _ -> pure Nothing
-  StillInDiscard _ -> pure Nothing
-  StillInEncounterDiscard -> pure Nothing
-  AttachedToEnemy enemy -> field EnemyLocation enemy
-  AttachedToTreachery treachery -> field TreacheryLocation treachery
-  AttachedToAsset asset _ -> field AssetLocation asset
-  InVehicle asset -> field AssetLocation asset
-  AttachedToAct _ -> pure Nothing
-  AttachedToAgenda _ -> pure Nothing
-  AttachedToInvestigator investigator -> field InvestigatorLocation investigator
-  Unplaced -> pure Nothing
-  Limbo -> pure Nothing
-  Global -> pure Nothing
-  OutOfPlay _ -> pure Nothing
-  AsSwarm eid _ -> field EnemyLocation eid
-  HiddenInHand _ -> pure Nothing
-  OnTopOfDeck _ -> pure Nothing
-  Near _ -> pure Nothing
-  NextToAgenda -> pure Nothing
-
 createActiveCostForAdditionalCardCosts
   :: (MonadRandom m, HasGame m)
   => InvestigatorId
@@ -224,7 +196,7 @@ createActiveCostForAdditionalCardCosts iid card = do
 getEnemy :: (HasCallStack, HasGame m) => EnemyId -> m Enemy
 getEnemy eid = fromJustNote missingEnemy <$> maybeEnemy eid
  where
-  missingEnemy = "Unknown enemy: " <> show eid
+  missingEnemy = "Unknown enemy: " <> show eid <> "\n\n" <> prettyCallStack callStack
 
 maybeEnemy :: HasGame m => EnemyId -> m (Maybe Enemy)
 maybeEnemy eid = do
@@ -278,9 +250,7 @@ createActiveCostForCard iid card isPlayAction windows' = do
         resources <- getModifiedCardCost iid card
         investigator' <- getInvestigator iid
         let
-          actions = case cdActions (toCardDef card) of
-            [] -> [Action.Play | isPlayAction == IsPlayAction]
-            as -> as
+          isInvestigate = #investigate `elem` card.actions
           sealingToCost = \case
             Sealing matcher -> Just $ Cost.SealCost matcher
             SealUpTo n matcher -> Just $ Cost.UpTo (Fixed n) $ Cost.SealCost matcher
@@ -304,20 +274,31 @@ createActiveCostForCard iid card isPlayAction windows' = do
                   else Cost.Free
               else Cost.ResourceCost resources
 
+        investigateCosts <-
+          if isInvestigate
+            then do
+              getMaybeLocation iid >>= \case
+                Just lid -> do
+                  mods' <- getModifiers lid
+                  pure [c | AdditionalCostToInvestigate c <- mods']
+                _ -> pure []
+            else pure []
+
         additionalActionCosts <-
           sum <$> flip mapMaybeM allModifiers \case
             AdditionalCost (Cost.ActionCost n) -> pure $ Just n
             AdditionalActionCostOf match n -> do
               performedActions <- field InvestigatorActionsPerformed iid
               takenActions <- field InvestigatorActionsTaken iid
-              let cardActions = if isPlayAction == IsPlayAction then #play : card.actions else card.actions
+              let cardActions = if isPlayAction == IsPlayAction then nub (#play : card.actions) else card.actions
               pure $ guard (any (matchTarget takenActions performedActions match) cardActions) $> n
             _ -> pure Nothing
 
         actionCost <-
           if isPlayAction == NotPlayAction
             then pure $ if additionalActionCosts > 0 then Cost.ActionCost additionalActionCosts else Cost.Free
-            else Cost.ActionCost . (+ additionalActionCosts) <$> getActionCost (toAttrs investigator') actions
+            else
+              Cost.ActionCost . (+ additionalActionCosts) <$> getActionCost (toAttrs investigator') card.actions
 
         additionalCosts <- flip mapMaybeM allModifiers $ \case
           AdditionalCost (Cost.ActionCost _) -> pure Nothing
@@ -333,6 +314,7 @@ createActiveCostForCard iid card isPlayAction windows' = do
           <> (maybe [] pure . cdAdditionalCost $ toCardDef card)
           <> [actionCost]
           <> additionalCosts
+          <> investigateCosts
           <> sealChaosTokenCosts
   pure
     ActiveCost
@@ -362,7 +344,8 @@ getLocation lid = fromMaybe missingLocation <$> maybeLocation lid
 maybeLocation :: HasGame m => LocationId -> m (Maybe Location)
 maybeLocation lid = do
   g <- getGame
-  pure $ preview (entitiesL . locationsL . ix lid) g
+  pure
+    $ preview (entitiesL . locationsL . ix lid) g
     <|> getRemovedEntity locationsL lid g
 
 modeScenario :: GameMode -> Maybe Scenario

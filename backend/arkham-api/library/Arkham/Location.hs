@@ -28,7 +28,7 @@ instance RunMessage Location where
     let a = toAttrs x
     pure
       $ overAttrs
-        (\y -> y {locationLabel = locationLabel a})
+        (\y -> y {locationLabel = locationLabel a, locationDirections = locationDirections a})
         (lookupLocation (toCardCode a) a.id (toCardId a))
   runMessage msg x@(Location l) = do
     modifiers' <- getModifiers (toTarget x)
@@ -897,11 +897,52 @@ allLocations =
     , SomeLocationCard subterraneanSwamp
     , SomeLocationCard chthonianDepths
     , SomeLocationCard treacherousDescent
+    , --- Return to the City of Archives
+      SomeLocationCard hallsOfPnakotusSouthernCorridors
+    , SomeLocationCard cyclopeanVaults
+    , SomeLocationCard alienConservatory
+    , --- Return to Shattered Aeons
+      SomeLocationCard greatHallOfCeleano
+    , SomeLocationCard buenosAires
+    , SomeLocationCard ultimaThule
     , --- Return to Rainforest
       SomeLocationCard riversideTemple
     , SomeLocationCard waterfall
     , SomeLocationCard trailOfTheDead
     , SomeLocationCard cloudForest
+    , -- Return to The Circle Undone
+      --- Return to The Witching Hour
+      SomeLocationCard witchHauntedWoodsWitchTree
+    , SomeLocationCard witchHauntedWoodsUnmarkedGraveyard
+    , SomeLocationCard arkhamWoodsHiddenPath
+    , SomeLocationCard arkhamWoodsPlaceOfPower
+    , SomeLocationCard arkhamWoodsBootleggingOperation
+    , --- Return to At Death's Doorstep
+      SomeLocationCard wineCellar
+    , SomeLocationCard wineCellarSpectral
+    , --- Return to The Secret Name
+      SomeLocationCard templeOfRlyeh
+    , SomeLocationCard thePriceManor
+    , SomeLocationCard the9thWard
+    , SomeLocationCard libraryOfEbla
+    , --- Return to The Wages of Sin
+      SomeLocationCard returnToHangmansBrook
+    , SomeLocationCard returnToHangmansBrookSpectral
+    , --- Return to For the Greater Good
+      SomeLocationCard returnToLounge
+    , SomeLocationCard relicStorage
+    , SomeLocationCard shroudedArchive
+    , --- Return to In the Clutches of Chaos
+      SomeLocationCard returnToFrenchHill
+    , SomeLocationCard returnToRivertown
+    , SomeLocationCard returnToSouthside
+    , SomeLocationCard returnToUptown
+    , SomeLocationCard returnToSouthChurch
+    , SomeLocationCard returnToMerchantDistrict
+    , --- Return to Before the Black Throne
+      SomeLocationCard nightmareBreach
+    , SomeLocationCard interstellarAbyss
+    , SomeLocationCard windingGulf
     , -- The Curse of the Rougarou
       SomeLocationCard cursedShores
     , SomeLocationCard gardenDistrict
@@ -946,4 +987,30 @@ allLocations =
     , SomeLocationCard bedroomTheMidwinterGala
     , SomeLocationCard libraryTheMidwinterGala
     , SomeLocationCard parlorTheMidwinterGala
+    , -- Film Fatale
+      --- Film Fatale
+      SomeLocationCard centralLotQuietOnSet
+    , SomeLocationCard centralLotBlurred
+    , SomeLocationCard spaceSet
+    , SomeLocationCard jungleSet
+    , SomeLocationCard gothicSet
+    , --- Cosmic Journey
+      SomeLocationCard highRulersBastion
+    , SomeLocationCard teetawnPassage
+    , SomeLocationCard ritualSiteTeetawn
+    , SomeLocationCard tothisBarrens
+    , SomeLocationCard ritualSiteTothis
+    , SomeLocationCard lostAsteroid
+    , --- Forgotten Island
+      SomeLocationCard westernRidge
+    , SomeLocationCard tarPit
+    , SomeLocationCard easternRidge
+    , SomeLocationCard jungleRiver
+    , SomeLocationCard ruinsOfTheSerpentKing
+    , --- Abominable Contessa
+      SomeLocationCard castleHallwaysSeeminglyEndless
+    , SomeLocationCard catacombsStinksOfDeath
+    , SomeLocationCard clockTowerIncessantlyTicking
+    , SomeLocationCard moonlitGardenPoisonedBeauty
+    , SomeLocationCard throneOfBloodRedAsBloodBlackAsNight
     ]

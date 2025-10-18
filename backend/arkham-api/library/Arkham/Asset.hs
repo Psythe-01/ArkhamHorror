@@ -1216,6 +1216,10 @@ allAssets =
     , SomeAssetCard observed4
     , -- weakness [rttcu]
       SomeAssetCard theDevilXv
+    , -- Return to The Wages of Sin [rttcu]
+      SomeAssetCard erynnMacAoidhDevotedEnchantress
+    , -- Return to Before the Black Throne [rttcu]
+      SomeAssetCard nightgauntSteed
     , -- Investigator Starter Decks
       --- Nathaniel Cho
       SomeAssetCard randallCho
@@ -1389,6 +1393,12 @@ allAssets =
     , SomeAssetCard thePaleLanternHypnoticGlow
     , SomeAssetCard thePaleLanternBeguilingAura
     , SomeAssetCard jewelOfSarnath
+    , -- Film Fatale
+      SomeAssetCard heliosTelescopeGateToTheCosmos
+    , SomeAssetCard staffOfTheSerpentRelicOfThePast
+    , SomeAssetCard accursedCapeShroudOfChaos
+    , SomeAssetCard andrePatelMadeForTheSpotlight
+    , SomeAssetCard rocketShipRattlingWithEnergy
     , -- Misc
       SomeAssetCard courage
     ]

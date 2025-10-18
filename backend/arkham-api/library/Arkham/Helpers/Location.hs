@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
-
 module Arkham.Helpers.Location where
 
 import Arkham.Asset.Types (AssetAttrs, Field (..))
@@ -10,9 +8,11 @@ import Arkham.Classes.HasQueue
 import Arkham.Classes.Query hiding (matches)
 import Arkham.Direction
 import Arkham.Enemy.Types (EnemyAttrs, Field (..))
+import Arkham.ForMovement
 import {-# SOURCE #-} Arkham.Helpers.Cost (getCanAffordCost)
 import Arkham.Helpers.GameValue (gameValueMatches)
 import Arkham.Helpers.Modifiers
+import Arkham.Helpers.Source
 import Arkham.Id
 import Arkham.Investigator.Types (Field (..))
 import Arkham.Location.Types (Field (..))
@@ -37,14 +37,10 @@ toConnections :: HasGame m => LocationId -> m [LocationSymbol]
 toConnections lid =
   fieldMap LocationCard (cdLocationRevealedConnections . toCardDef) lid
 
-getConnectedMatcher :: HasGame m => LocationId -> m LocationMatcher
-getConnectedMatcher l = do
+getConnectedMatcher :: HasGame m => ForMovement -> LocationId -> m LocationMatcher
+getConnectedMatcher forMovement l = do
   isRevealed <- field LocationRevealed l
-  directionalMatchers <-
-    fieldMap
-      LocationConnectsTo
-      (map (`LocationInDirection` self) . setToList)
-      l
+  directionalMatchers <- fieldMap LocationConnectsTo (map (`LocationInDirection` self) . setToList) l
   base <-
     if isRevealed
       then field LocationRevealedConnectedMatchers l
@@ -55,6 +51,9 @@ getConnectedMatcher l = do
     <$> foldM applyModifier (base <> directionalMatchers) modifiers
  where
   applyModifier current (ConnectedToWhen whenMatcher matcher) = do
+    matches <- elem l <$> select whenMatcher
+    pure $ current <> [matcher | matches]
+  applyModifier current (ForMovementConnectedToWhen whenMatcher matcher) | forMovement == ForMovement = do
     matches <- elem l <$> select whenMatcher
     pure $ current <> [matcher | matches]
   applyModifier current _ = pure current
@@ -69,7 +68,6 @@ whenAt iid lid = whenM (isAt iid lid)
 placementLocation :: (HasCallStack, HasGame m) => Placement -> m (Maybe LocationId)
 placementLocation = \case
   AtLocation lid -> pure $ Just lid
-  ActuallyLocation lid -> pure $ Just lid
   AttachedToLocation lid -> pure $ Just lid
   InPlayArea iid -> field InvestigatorLocation iid
   InThreatArea iid -> field InvestigatorLocation iid
@@ -211,26 +209,39 @@ locationMatches investigatorId source window locationId matcher' = do
     _ -> locationId <=~> matcher
 
 getCanMoveTo :: (Sourceable source, HasGame m) => InvestigatorId -> source -> LocationId -> m Bool
-getCanMoveTo iid source lid = elem lid <$> getCanMoveToLocations iid source
+getCanMoveTo iid source lid =
+  cached (CanMoveToLocationKey iid (toSource source) lid) do
+    elem lid <$> getCanMoveToLocations iid source
 
 getCanMoveToLocations
   :: (Sourceable source, HasGame m) => InvestigatorId -> source -> m [LocationId]
-getCanMoveToLocations iid source = do
+getCanMoveToLocations iid source = cached (CanMoveToLocationsKey iid (toSource source)) do
+  modifiers <- getModifiers iid
+  let includeEmpty = if CanEnterEmptySpace `elem` modifiers then IncludeEmptySpace else id
+  ls <-
+    select
+      $ includeEmpty
+      $ Matcher.canEnterLocation iid
+      <> Matcher.NotLocation (Matcher.LocationWithInvestigator $ InvestigatorWithId iid)
+  getCanMoveToLocations_ iid source ls
+
+getCanMoveToLocations_
+  :: (Sourceable source, HasGame m) => InvestigatorId -> source -> [LocationId] -> m [LocationId]
+getCanMoveToLocations_ iid source ls = cached (CanMoveToLocationsKey_ iid (toSource source) ls) do
   canMove <-
     iid <=~> (Matcher.InvestigatorCanMove <> not_ (Matcher.InVehicleMatching Matcher.AnyAsset))
-  if canMove
+  onlyScenarioEffects <- hasModifier iid CannotMoveExceptByScenarioCardEffects
+  isScenarioEffect <- sourceMatches (toSource source) SourceIsScenarioCardEffect
+  if canMove && (not onlyScenarioEffects || isScenarioEffect)
     then do
-      selectOne (Matcher.locationWithInvestigator iid) >>= \case
+      getLocationOf iid >>= \case
         Nothing -> pure []
         Just lid -> do
           imods <- getModifiers iid
           mods <- getModifiers lid
-          ls <-
-            select
-              $ Matcher.canEnterLocation iid
-              <> Matcher.NotLocation (Matcher.LocationWithId lid)
           let extraCostsToLeave = mconcat [c | AdditionalCostToLeave c <- mods]
-          flip filterM ls $ \l -> do
+          let barricaded = concat [xs | Barricades xs <- mods]
+          ls & filter (and . sequence [(/= lid), (`notElem` barricaded)]) & filterM \l -> do
             mods' <- getModifiers l
             pcosts <- filterM ((l <=~>) . fst) [(ma, c) | AdditionalCostToEnterMatching ma c <- imods]
             revealed' <- field LocationRevealed l
@@ -249,23 +260,22 @@ getCanMoveToMatchingLocations iid source matcher = do
   ls <- getCanMoveToLocations iid source
   filter (`elem` ls) <$> select matcher
 
+-- TODO: CACHE
 getConnectedMoveLocations
   :: (Sourceable source, HasGame m) => InvestigatorId -> source -> m [LocationId]
 getConnectedMoveLocations iid source =
-  getCanMoveToMatchingLocations
-    iid
-    source
-    (Matcher.ConnectedFrom $ Matcher.locationWithInvestigator iid)
+  getCanMoveToMatchingLocations iid source
+    $ Matcher.ConnectedFrom ForMovement (Matcher.locationWithInvestigator iid)
 
+-- TODO: CACHE
 getAccessibleLocations
   :: (Sourceable source, HasGame m) => InvestigatorId -> source -> m [LocationId]
 getAccessibleLocations iid source =
-  getCanMoveToMatchingLocations
-    iid
-    source
-    (Matcher.AccessibleFrom $ Matcher.locationWithInvestigator iid)
+  getCanMoveToMatchingLocations iid source
+    $ Matcher.AccessibleFrom ForMovement (Matcher.locationWithInvestigator iid)
 
-getCanLeaveCurrentLocation :: (Sourceable source, HasGame m) => InvestigatorId -> source -> m Bool
+getCanLeaveCurrentLocation
+  :: (Sourceable source, HasGame m) => InvestigatorId -> source -> m Bool
 getCanLeaveCurrentLocation iid source = do
   mLocation <- selectOne $ Matcher.locationWithInvestigator iid
   case mLocation of

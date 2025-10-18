@@ -25,7 +25,7 @@ import {-# SOURCE #-} Arkham.Placement
 import Arkham.Prelude
 import {-# SOURCE #-} Arkham.Source
 import Arkham.Token
-import Arkham.Trait (Trait (Ghoul, Criminal))
+import Arkham.Trait (Trait (Criminal, Ghoul, Humanoid, Cultist))
 import Arkham.Zone
 import Control.Lens.Plated (Plated)
 import Data.Aeson.TH
@@ -50,6 +50,7 @@ data EnemyMatcher
   | EnemyWithId EnemyId
   | EnemyWithTrait Trait
   | EnemyWithToken Token
+  | EnemyWithTokens Int Token
   | EnemyAt LocationMatcher
   | EnemyAttachedToAsset AssetMatcher
   | EnemyAttachedTo TargetMatcher
@@ -66,6 +67,7 @@ data EnemyMatcher
   | EnemyWithEqualFields (Field Enemy Int) (Field Enemy Int)
   | EnemyWithNonZeroField (Field Enemy Int)
   | EnemyWithMaybeFieldLessThanOrEqualToThis EnemyId (Field Enemy (Maybe Int))
+  | EnemyWithMaybeFieldLessThanOrEqualTo Int (Field Enemy (Maybe Int))
   | EnemyWithRemainingHealth ValueMatcher
   | EnemyWithDamage ValueMatcher
   | EnemyWithDoom ValueMatcher
@@ -89,6 +91,7 @@ data EnemyMatcher
   | AttackingEnemy
   | AttackedYouSinceTheEndOfYourLastTurn
   | CanFightEnemy Source
+  | CanFightEnemyWith SourceMatcher
   | CanEvadeEnemy Source -- This checks for an ability
   | EnemyCanBeEvadedBy Source -- This is not checking for an ability
   | EnemyCanBeDefeatedBy Source
@@ -140,6 +143,7 @@ data EnemyMatcher
   | EnemyIfReturnTo EnemyMatcher EnemyMatcher
   | EnemyWithAnyCardsUnderneath
   | SignatureEnemy
+  | EnemyHiddenInHand InvestigatorMatcher
   | -- | Must be replaced
     ThatEnemy
   deriving stock (Show, Eq, Ord, Data)
@@ -167,11 +171,17 @@ instance IsLabel "ready" EnemyMatcher where
 instance IsLabel "unengaged" EnemyMatcher where
   fromLabel = UnengagedEnemy
 
+instance IsLabel "humanoid" EnemyMatcher where
+  fromLabel = EnemyWithTrait Humanoid
+
 instance IsLabel "ghoul" EnemyMatcher where
   fromLabel = EnemyWithTrait Ghoul
 
 instance IsLabel "criminal" EnemyMatcher where
   fromLabel = EnemyWithTrait Criminal
+
+instance IsLabel "cultist" EnemyMatcher where
+  fromLabel = EnemyWithTrait Cultist
 
 instance Semigroup EnemyMatcher where
   AnyEnemy <> x = x

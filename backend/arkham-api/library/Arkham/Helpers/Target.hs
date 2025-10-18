@@ -39,6 +39,7 @@ targetTraits = \case
   CardIdTarget _ -> pure mempty
   CardCostTarget _ -> pure mempty
   EffectTarget _ -> pure mempty
+  KeyTarget _ -> pure mempty
   EnemyTarget eid -> do
     result <-
       runMaybeT
@@ -67,7 +68,7 @@ targetTraits = \case
   InvestigatorDiscardTarget _ -> pure mempty
   SetAsideLocationsTarget _ -> pure mempty
   EncounterDeckTarget -> pure mempty
-  ScenarioDeckTarget -> pure mempty
+  ScenarioDeckTarget _ -> pure mempty
   SearchedCardTarget _ -> pure mempty
   SkillTestInitiatorTarget _ -> pure mempty
   PhaseTarget _ -> pure mempty

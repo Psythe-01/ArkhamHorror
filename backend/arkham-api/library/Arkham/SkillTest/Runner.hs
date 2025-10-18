@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-deprecations #-}
 
 module Arkham.SkillTest.Runner (module X, totalModifiedSkillValue) where
 
@@ -75,7 +75,7 @@ calculateSkillTestResultsData s = do
   pure
     $ SkillTestResultsData
       currentSkillValue
-      (iconCount - subtractIconCount)
+      ((if SkillIconsSubtract `elem` modifiers' then negate . abs else id) iconCount - subtractIconCount)
       chaosTokenValues
       modifiedSkillTestDifficulty
       (resultValueModifiers <$ guard (resultValueModifiers /= 0))
@@ -160,7 +160,7 @@ instance RunMessage SkillTest where
       -- see: faqs/drawing-thin
       pure $ s & difficultyL %~ \(SkillTestDifficulty d) -> SkillTestDifficulty (SumCalculation [d, Fixed n])
     ChaosTokenCanceled _ _ token -> do
-      let cancelIf t = if t.id == token.id then token {chaosTokenCancelled = True} else token
+      let cancelIf t = if t.id == token.id then token {chaosTokenCancelled = True} else t
       pure
         $ s
         & (setAsideChaosTokensL %~ map cancelIf)
@@ -257,6 +257,12 @@ instance RunMessage SkillTest where
           , Do (SkillTestEnds skillTestId skillTestInvestigator skillTestSource)
           ]
       pure s
+    RemovedFromPlay (SkillSource sid) -> do
+      card <- field Field.SkillCard sid
+      pure
+        $ s
+        & (committedCardsL . each %~ filter ((/= card.id) . toCardId))
+        & (subscribersL %~ filter (not . isTarget sid))
     RemoveFromGame target | target == skillTestTarget -> do
       when (skillTestStep < RevealChaosTokenStep) do
         pushAll
@@ -409,6 +415,9 @@ instance RunMessage SkillTest where
           ]
       pure $ s & toResolveChaosTokensL .~ mempty & resolvedChaosTokensL <>~ skillTestToResolveChaosTokens
     PassSkillTest -> do
+      pushAll [CheckAllAdditionalCommitCosts, Do PassSkillTest]
+      pure s
+    Do PassSkillTest -> do
       modifiedSkillValue' <- totalModifiedSkillValue s
       player <- getPlayer skillTestInvestigator
       removeAllMessagesMatching \case
@@ -428,6 +437,9 @@ instance RunMessage SkillTest where
       push $ chooseOne player [SkillTestApplyResultsButton]
       pure $ s & resultL .~ SucceededBy NonAutomatic n
     FailSkillTest -> do
+      pushAll [CheckAllAdditionalCommitCosts, Do FailSkillTest]
+      pure s
+    Do FailSkillTest -> do
       resultsData <- autoFailSkillTestResultsData s
       difficulty <- getModifiedSkillTestDifficulty s
       -- player <- getPlayer skillTestInvestigator
@@ -481,17 +493,17 @@ instance RunMessage SkillTest where
       pure s
     CheckAdditionalCommitCosts iid cards -> do
       modifiers' <- getModifiers iid
-      cardModifiers <- concat <$> traverse getModifiers cards
-      let
-        msgs = map (CommitCard iid) cards
-        additionalCosts =
-          mapMaybe
-            ( \case
-                CommitCost c -> Just c
-                AdditionalCostToCommit iid' c | iid' == iid -> Just c
-                _ -> Nothing
-            )
-            (modifiers' <> cardModifiers)
+      let msgs = map (CommitCard iid) cards
+      cardsAdditionalCosts <-
+        cards & concatMapM \c -> do
+          cardModifiers <- getModifiers c
+          let noAdditionalCosts = NoAdditionalCosts `elem` cardModifiers
+          pure $ cardModifiers & mapMaybe \case
+            AdditionalCostToCommit iid' cst | iid' == iid && noAdditionalCosts -> Just cst
+            _ -> Nothing
+
+      let playerCommitCosts = [c | CommitCost c <- modifiers']
+      let additionalCosts = cardsAdditionalCosts <> playerCommitCosts
       afterMsg <- checkWindows [mkAfter $ Window.CommittedCards iid cards]
       whenMsg <- checkWindows [mkWhen $ Window.CommittedCards iid cards]
       if null additionalCosts
@@ -533,8 +545,17 @@ instance RunMessage SkillTest where
       cmods <- getModifiers card
       let costToCommit = fold [cst | AdditionalCostToCommit iid' cst <- cmods, iid' == iid]
       batchId <- getRandom
+      push $ Do msg
       when (costToCommit /= mempty) do
         push $ PayAdditionalCost iid batchId costToCommit
+      unless (LeaveCardWhereItIs `elem` cmods) do
+        push $ ObtainCard card.id
+      pure s
+    CommitCard iid card | card `elem` findWithDefault [] iid skillTestCommittedCards -> do
+      cmods <- getModifiers card
+      pushAll $ [ObtainCard card.id | LeaveCardWhereItIs `notElem` cmods] <> [Do msg]
+      pure s
+    Do (CommitCard iid card) | card `notElem` findWithDefault [] iid skillTestCommittedCards -> do
       pure $ s & committedCardsL %~ insertWith (<>) iid [card]
     SkillTestUncommitCard _ card ->
       pure $ s & committedCardsL %~ map (filter (/= card))
@@ -592,7 +613,10 @@ instance RunMessage SkillTest where
       pure s
     ReturnToHand _ (SkillTarget sid) -> do
       card <- field Field.SkillCard sid
-      pure $ s & committedCardsL . each %~ filter ((/= card.id) . toCardId)
+      pure
+        $ s
+        & (committedCardsL . each %~ filter ((/= card.id) . toCardId))
+        & (subscribersL %~ filter (not . isTarget sid))
     ReturnToHand _ (CardIdTarget cardId) -> do
       pure $ s & committedCardsL . each %~ filter ((/= cardId) . toCardId)
     SkillTestResults {} -> do

@@ -30,6 +30,7 @@ import Arkham.Placement
 import Arkham.Scenario ()
 import Arkham.Skill (createSkill)
 import Arkham.Skill.Types (Skill)
+import Arkham.Source
 import Arkham.Story
 import Arkham.Target
 import Arkham.Treachery
@@ -128,12 +129,15 @@ instance HasAbilities Entities where
       <> concatMap getAbilities (toList entitiesStories)
 
 data SomeEntity where
-  SomeEntity :: (Entity a, HasModifiersFor a, Targetable a, Show a) => a -> SomeEntity
+  SomeEntity :: (Entity a, HasModifiersFor a, Targetable a, Sourceable a, Show a) => a -> SomeEntity
 
 deriving stock instance Show SomeEntity
 
 instance Targetable SomeEntity where
   toTarget (SomeEntity e) = toTarget e
+
+instance Sourceable SomeEntity where
+  toSource (SomeEntity e) = toSource e
 
 instance HasModifiersFor SomeEntity where
   getModifiersFor (SomeEntity e) = getModifiersFor e
@@ -162,8 +166,8 @@ makeLensesWith suffixedFields ''Entities
 
 -- Entity id generation uses the card id, this is only necessary for entities with non in-play effects
 addCardEntityWith
-  :: InvestigatorId -> (forall a. Typeable a => a -> a) -> Entities -> Card -> Entities
-addCardEntityWith i f e card = case card of
+  :: InvestigatorId -> (forall a. Typeable a => a -> a) -> UUID -> Entities -> Card -> Entities
+addCardEntityWith i f uuid e card = case card of
   PlayerCard pc -> case toCardType pc of
     EventType ->
       let
@@ -197,10 +201,8 @@ addCardEntityWith i f e card = case card of
         treachery = f $ createTreachery card i treacheryId
        in
         e & treacheriesL %~ insertMap (toId treachery) treachery
-    _ -> error "Unhandled"
+    _ -> error "Unhandled AddCardEntityWith for encounter card"
   VengeanceCard _ -> error "vengeance card"
- where
-  uuid = unsafeCardIdToUUID (toCardId card)
 
 addEntity :: forall a. Typeable a => a -> Entities -> Entities
 addEntity a e =

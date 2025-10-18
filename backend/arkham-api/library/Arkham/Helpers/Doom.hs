@@ -1,7 +1,5 @@
 module Arkham.Helpers.Doom where
 
-import Arkham.Prelude
-
 import Arkham.Agenda.Types
 import Arkham.Asset.Types
 import Arkham.Classes.HasGame
@@ -10,13 +8,21 @@ import Arkham.Enemy.Types
 import Arkham.Event.Types
 import {-# SOURCE #-} Arkham.Game ()
 import Arkham.Helpers.Modifiers (getModifiers)
+import Arkham.Id
 import Arkham.Investigator.Types
 import Arkham.Location.Types
 import Arkham.Matcher
 import Arkham.Modifier
+import Arkham.Prelude
 import Arkham.Projection
 import Arkham.Target
 import Arkham.Treachery.Types
+
+class HasDoom a where
+  getDoom :: (HasCallStack, HasGame m) => a -> m Int
+
+instance HasDoom LocationId where
+  getDoom = field LocationDoom
 
 targetsWithDoom :: HasGame m => m [Target]
 targetsWithDoom = do
@@ -49,14 +55,14 @@ getDoomOnTarget = \case
   EventTarget lid -> field EventDoom lid
   _ -> pure 0
 
-getDoomCount :: HasGame m => m Int
+getDoomCount :: (HasCallStack, HasGame m) => m Int
 getDoomCount = do
   adds <-
     getSum
       . fold
       <$> sequence
         [ selectAgg Sum AssetDoom (AssetWithoutModifier DoomSubtracts)
-        , selectAgg Sum EnemyDoom (InPlayEnemy $ EnemyWithoutModifier DoomSubtracts)
+        , selectAgg Sum EnemyExactDoom (IncludeOmnipotent $ InPlayEnemy $ EnemyWithoutModifier DoomSubtracts)
         , selectAgg Sum EventDoom (EventWithoutModifier DoomSubtracts)
         , selectAgg Sum LocationDoom (LocationWithoutModifier DoomSubtracts)
         , selectAgg Sum TreacheryDoom (TreacheryWithoutModifier DoomSubtracts)
@@ -80,7 +86,7 @@ getDoomCount = do
       . fold
       <$> sequence
         [ selectAgg Sum AssetDoom (AssetWithModifier DoomSubtracts)
-        , selectAgg Sum EnemyDoom (EnemyWithModifier DoomSubtracts)
+        , selectAgg Sum EnemyExactDoom (EnemyWithModifier DoomSubtracts)
         , selectAgg Sum EventDoom (EventWithModifier DoomSubtracts)
         , selectAgg Sum LocationDoom (LocationWithModifier DoomSubtracts)
         , selectAgg Sum TreacheryDoom (TreacheryWithModifier DoomSubtracts)
@@ -108,7 +114,7 @@ getSubtractDoomCount = do
       . fold
       <$> sequence
         [ selectAgg Sum AssetDoom AnyAsset
-        , selectAgg Sum EnemyDoom AnyEnemy
+        , selectAgg Sum EnemyExactDoom AnyEnemy
         , selectAgg Sum EventDoom AnyEvent
         , selectAgg Sum LocationDoom Anywhere
         , selectAgg Sum TreacheryDoom AnyTreachery

@@ -24,11 +24,13 @@ allActCards =
     $ map
       (toCardCode &&& id)
       [ aCircleUnbroken
+      , aCosmicJourney
       , aFamiliarPattern
       , afterHours
       , alejandrosPlight
       , alejandrosPrison
       , allIn
+      , andresRequest
       , arkhamAsylum
       , ascendTheMountain
       , ascendingTheHillV1
@@ -47,7 +49,9 @@ allActCards =
       , beyondTheMistV2
       , beyondTheMistV3
       , beyondTheMistV4
+      , beyondTheMistV5
       , beyondTheWitchHouse
+      , bloodbath
       , breakingAndEntering
       , campusSafety
       , cavernOfTheForgottenAge
@@ -62,6 +66,7 @@ allActCards =
       , darkKnowledgeV1
       , darkKnowledgeV2
       , descentIntoDark
+      , destroyTheSource
       , discoverTheTruth
       , discoveringTheTruth
       , disruptingTheRitual
@@ -85,6 +90,7 @@ allActCards =
       , followingLeads
       , friendsInHighPlacesHenryDeveau
       , friendsInHighPlacesHenrysInformation
+      , fromWhenceTheyCame
       , getTheEngineRunning
       , getToTheBoats
       , harlanIsInDanger
@@ -96,17 +102,19 @@ allActCards =
       , impossiblePursuit
       , inAzathothsDomain
       , infiltratingTheLodge
+      , inLostCarcosa
+      , inPursuitOfAnswers
+      , inPursuitOfTheBeyond
+      , inPursuitOfTheDead
+      , inPursuitOfTheLiving
+      , inTheBellyOfTheMoonBeast
       , intoTheBeyond
       , intoTheBeyondV2
       , intoTheDarkness
       , intoTheRuins
       , intoTheRuinsOnceAgain
-      , investigatingTheWitchHouse
-      , inLostCarcosa
-      , inPursuitOfTheDead
-      , inPursuitOfTheLiving
-      , inTheBellyOfTheMoonBeast
       , investigatingTheTrail
+      , investigatingTheWitchHouse
       , journeyAcrossTheBridge
       , journeyThroughTheColdWastes
       , journeyToTheNexus
@@ -143,6 +151,7 @@ allActCards =
       , reefOfMysteries
       , repossession
       , restrictedAccess
+      , returnToACircleUnbroken
       , ricesWhereabouts
       , row
       , run
@@ -176,6 +185,7 @@ allActCards =
       , strangeOccurences
       , strangeRelicsMariaDeSilva
       , strangeRelicsMariasInformation
+      , theAbominableContessa
       , theBarrier
       , theBindingRite
       , theBlackExpanse
@@ -196,6 +206,7 @@ allActCards =
       , theFinalDescent
       , theFinalMirage
       , theFirstOath
+      , theForgottenIsland
       , theFourKeys
       , theGateOpens
       , theGreatSeal
@@ -250,10 +261,12 @@ allActCards =
       , uncoveringTheConspiracy
       , underAttack
       , unexpectedRescue
+      , unrestrictedAccess
       , warmWelcome
       , whatHappened
       , whatHaveYouDone
       , whatMustBeDone
+      , whatMustBeDoneV2
       , witchHauntings
       , worldsBeyond
       , worshippersOfTheDeep
@@ -693,13 +706,13 @@ theBrokenRite :: CardDef
 theBrokenRite = act "05248" "The Broken Rite" 4 UnionAndDisillusion
 
 darkKnowledgeV1 :: CardDef
-darkKnowledgeV1 = act "05286a" "Dark Knowledge (v. I)" 1 MusicOfTheDamned
+darkKnowledgeV1 = (act "05286a" "Dark Knowledge (v. I)" 1 MusicOfTheDamned) { cdOtherSide = Just "05286b" }
 
 beyondTheGrave :: CardDef
 beyondTheGrave = act "05287" "Beyond the Grave" 2 MusicOfTheDamned
 
 darkKnowledgeV2 :: CardDef
-darkKnowledgeV2 = act "05288a" "Dark Knowledge (v. II)" 1 SecretsOfTheUniverse
+darkKnowledgeV2 = (act "05288a" "Dark Knowledge (v. II)" 1 SecretsOfTheUniverse) { cdOtherSide = Just "05288b" }
 
 newWorldOrder :: CardDef
 newWorldOrder = act "05289" "New World Order" 2 SecretsOfTheUniverse
@@ -955,6 +968,24 @@ impossiblePursuit = act "53036" "Impossible Pursuit" 3 ReturnToThreadsOfFate
 aFamiliarPattern :: CardDef
 aFamiliarPattern = act "53046" "A Familiar Pattern" 1 ReturnToPillarsOfJudgement
 
+unrestrictedAccess :: CardDef
+unrestrictedAccess = act "53054" "Unrestricted Access" 2 ReturnToTheCityOfArchives
+
+returnToACircleUnbroken :: CardDef
+returnToACircleUnbroken = act "54018" "A Circle Unbroken" 4 ReturnToTheWitchingHour
+
+inPursuitOfAnswers :: CardDef
+inPursuitOfAnswers = act "54035" "In Pursuit of Answers" 1 ReturnToTheWagesOfSin
+
+inPursuitOfTheBeyond :: CardDef
+inPursuitOfTheBeyond = act "54036" "In Pursuit of the Beyond" 2 ReturnToTheWagesOfSin
+
+beyondTheMistV5 :: CardDef
+beyondTheMistV5 = act "54047" "Beyond the Mist (v. V)" 3 ReturnToUnionAndDisillusion
+
+whatMustBeDoneV2 :: CardDef
+whatMustBeDoneV2 = act "54057" "What Must Be Done (v. II)" 3 ReturnToBeforeTheBlackThrone
+
 findingLadyEsprit :: CardDef
 findingLadyEsprit = act "81005" "Finding Lady Esprit" 1 TheBayou
 
@@ -982,3 +1013,24 @@ meetAndGreet = act "71005" "Meet and Greet" 1 TheMidwinterGala
 
 findingTheJewel :: CardDef
 findingTheJewel = act "71006" "Finding the Jewel" 2 TheMidwinterGala
+
+andresRequest :: CardDef
+andresRequest = act "72004" "Andres' Request" 1 FilmFatale
+
+aCosmicJourney :: CardDef
+aCosmicJourney = act "72025" "A Cosmic Journey" 2 CosmicJourney
+
+fromWhenceTheyCame :: CardDef
+fromWhenceTheyCame = act "72026" "From Whence They Came" 3 CosmicJourney
+
+theForgottenIsland :: CardDef
+theForgottenIsland = act "72037" "The Forgotten Island" 2 ForgottenIsland
+
+destroyTheSource :: CardDef
+destroyTheSource = act "72038" "Destroy the Source" 3 ForgottenIsland
+
+theAbominableContessa :: CardDef
+theAbominableContessa = act "72048" "The Abominable Contessa" 2 AbominableContessa
+
+bloodbath :: CardDef
+bloodbath = act "72049" "Bloodbath" 3 AbominableContessa

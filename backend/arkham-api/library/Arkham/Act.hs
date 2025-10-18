@@ -341,6 +341,18 @@ allActs =
     , SomeActCard impossiblePursuit
     , --- Return to Heart of the Elders
       SomeActCard aFamiliarPattern
+    , --- Return to the City of Archives
+      SomeActCard unrestrictedAccess
+    , -- Return to The Circle Undone
+      --- Return to The Witching Hour
+      SomeActCard returnToACircleUnbroken
+    , --- Return to The Wages of Sin
+      SomeActCard inPursuitOfAnswers
+    , SomeActCard inPursuitOfTheBeyond
+    , --- Return to Union and Disillusion
+      SomeActCard beyondTheMistV5
+    , --- Return to Before the Black Throne
+      SomeActCard whatMustBeDoneV2
     , -- Curse of the Rougarou
       SomeActCard findingLadyEsprit
     , SomeActCard huntingTheRougarou
@@ -354,4 +366,16 @@ allActs =
     , -- The Midwinter Gala
       SomeActCard meetAndGreet
     , SomeActCard findingTheJewel
+    , -- Film Fatale
+      --- Film Fatale
+      SomeActCard andresRequest
+    , --- Cosmic Journey
+      SomeActCard aCosmicJourney
+    , SomeActCard fromWhenceTheyCame
+    , --- Forgotten Island
+      SomeActCard theForgottenIsland
+    , SomeActCard destroyTheSource
+    , --- Abominable Contessa
+      SomeActCard theAbominableContessa
+    , SomeActCard bloodbath
     ]

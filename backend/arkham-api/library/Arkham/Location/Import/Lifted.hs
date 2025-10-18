@@ -13,11 +13,14 @@ import Arkham.Location.Runner as X (
   LocationCard,
   Message (..),
   canBeFlippedL,
+  cardsUnderneathL,
   connectedMatchersL,
   connectsToL,
   costToEnterUnrevealedL,
   extendRevealed,
   extendRevealed1,
+  extendUnrevealed,
+  extendUnrevealed1,
   floodLevelL,
   getLeadPlayer,
   getLocationMetaDefault,
@@ -44,6 +47,7 @@ import Arkham.Location.Runner as X (
   withResignAction,
   pattern FailedThisSkillTest,
   pattern FailedThisSkillTestBy,
+  pattern FlipThis,
   pattern PassedThisSkillTest,
   pattern PassedThisSkillTestBy,
   pattern PlaceDoom,
@@ -67,6 +71,10 @@ whenRevealed attrs body = when attrs.revealed body
 
 whenUnrevealed :: HasGame m => LocationAttrs -> m () -> m ()
 whenUnrevealed attrs body = when attrs.unrevealed body
+
+blockedWhenUnrevealed
+  :: (HasGame m, MonadWriter (MonoidalMap Target [Modifier]) m) => LocationAttrs -> m ()
+blockedWhenUnrevealed attrs = whenUnrevealed attrs $ modifySelf attrs [Blocked]
 
 blockedWhen
   :: (HasGame m, MonadWriter (MonoidalMap Target [Modifier]) m) => LocationAttrs -> m Bool -> m ()

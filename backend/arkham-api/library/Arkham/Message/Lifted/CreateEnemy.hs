@@ -19,6 +19,7 @@ newtype CreateEnemyT m a = CreateEnemyT {unCreateEnemyT :: StateT (EnemyCreation
 
 instance HasGame m => HasGame (CreateEnemyT m) where
   getGame = lift getGame
+  getCache = GameCache \_ build -> build
 
 instance CardGen m => CardGen (CreateEnemyT m) where
   genEncounterCard = lift . genEncounterCard
@@ -59,7 +60,7 @@ runCreateEnemyT a creation body = do
 
 afterCreate :: MonadIO m => QueueT Message m () -> CreateEnemyT m ()
 afterCreate body = do
-  msgs <- lift $ evalQueueT body
+  msgs <- lift $ capture body
   modify' \creation -> creation {enemyCreationAfter = msgs}
 
 createExhausted :: Monad m => CreateEnemyT m ()

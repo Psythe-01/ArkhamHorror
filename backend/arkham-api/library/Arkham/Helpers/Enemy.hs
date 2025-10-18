@@ -9,8 +9,11 @@ import Arkham.Classes.HasGame
 import Arkham.Classes.HasQueue
 import Arkham.Classes.Query
 import Arkham.DamageEffect
+import Arkham.Enemy.Creation (EnemyCreation (..))
 import Arkham.Enemy.Types
+import Arkham.ForMovement
 import Arkham.GameValue
+import Arkham.Helpers.Calculation
 import Arkham.Helpers.Damage (damageEffectMatches)
 import Arkham.Helpers.Investigator (getJustLocation)
 import Arkham.Helpers.Location
@@ -36,8 +39,12 @@ import Arkham.Spawn
 import Arkham.Target
 import Arkham.Window (mkAfter, mkWhen)
 import Arkham.Window qualified as Window
+import Arkham.Zone
 import Data.Foldable (foldrM)
 import Data.List qualified as List
+import Data.Monoid (First (..))
+import Data.Proxy
+import Data.Typeable
 
 spawned :: EnemyAttrs -> Bool
 spawned EnemyAttrs {enemyPlacement} = enemyPlacement /= Unplaced
@@ -176,7 +183,7 @@ getFightableEnemyIds iid (toSource -> source) = do
 getEnemyAccessibleLocations :: HasGame m => EnemyId -> m [LocationId]
 getEnemyAccessibleLocations eid = do
   location <- fieldMap EnemyLocation (fromJustNote "must be at a location") eid
-  matcher <- getConnectedMatcher location
+  matcher <- getConnectedMatcher NotForMovement location
   connectedLocationIds <- select matcher
   filterM (canEnterLocation eid) connectedLocationIds
 
@@ -198,13 +205,13 @@ defeatEnemy enemyId investigatorId (toSource -> source) = do
 enemyEngagedInvestigators :: HasGame m => EnemyId -> m [InvestigatorId]
 enemyEngagedInvestigators eid = do
   asIfEngaged <- select $ InvestigatorWithModifier (AsIfEngagedWith eid)
-  placement <- field EnemyPlacement eid
-  others <- case placement of
-    InThreatArea iid -> pure [iid]
-    AtLocation lid -> do
+  mPlacement <- fieldMay EnemyPlacement eid
+  others <- case mPlacement of
+    Just (InThreatArea iid) -> pure [iid]
+    Just (AtLocation lid) -> do
       isEngagedMassive <- eid <=~> (MassiveEnemy <> ReadyEnemy)
       if isEngagedMassive then select (investigatorAt lid) else pure []
-    AsSwarm eid' _ -> enemyEngagedInvestigators eid'
+    Just (AsSwarm eid' _) -> enemyEngagedInvestigators eid'
     _ -> pure []
   pure . nub $ asIfEngaged <> others
 
@@ -338,3 +345,44 @@ insteadOfDiscarding e body = do
           ws' -> [Do (CheckWindows ws')]
       Discard {} -> msgs
       _ -> error "Invalid replacement"
+
+createEngagedWith
+  :: ToId investigator InvestigatorId => investigator -> EnemyCreation Message -> EnemyCreation Message
+createEngagedWith investigator ec =
+  ec
+    { enemyCreationAfter =
+        enemyCreationAfter ec <> [EngageEnemy (asId investigator) (enemyCreationEnemyId ec) Nothing False]
+    }
+{-# INLINE createEngagedWith #-}
+
+getDefeatedEnemyHealth :: HasGame m => EnemyId -> m (Maybe Int)
+getDefeatedEnemyHealth eid = do
+  healthValue <- getEnemyField EnemyHealthActual eid
+  for healthValue calculate
+
+type family FlatField k where
+  FlatField (Maybe a) = a
+  FlatField a = a
+
+getEnemyField
+  :: forall a m
+   . (Typeable a, Typeable (FlatField a), HasGame m)
+  => Field Enemy a -> EnemyId -> m (Maybe (FlatField a))
+getEnemyField fld eid = do
+  val <-
+    getFirst
+      . foldMap First
+      <$> sequence
+        ( fieldMay fld eid
+            : overOutOfPlayZones
+              ( \(p :: Proxy zone) ->
+                  fieldMay @(OutOfPlayEntity zone Enemy)
+                    (OutOfPlayEnemyField (knownOutOfPlayZone p) fld)
+                    eid
+              )
+        )
+  pure $ case eqT @(Maybe a) @(Maybe (FlatField a)) of
+    Just Refl -> val
+    Nothing -> case eqT @a @(Maybe (FlatField a)) of
+      Just Refl -> join val
+      Nothing -> Nothing

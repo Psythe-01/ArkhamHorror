@@ -15,10 +15,9 @@ import Arkham.Target
 import Arkham.Treachery.Types (Field (..))
 import Arkham.Window qualified as Window
 
-placedInThreatArea :: HasGame m => Placement -> m (Maybe InvestigatorId)
+placedInThreatArea :: (HasCallStack, HasGame m) => Placement -> m (Maybe InvestigatorId)
 placedInThreatArea = \case
   AtLocation _ -> pure Nothing
-  ActuallyLocation _ -> pure Nothing
   AttachedToLocation _ -> pure Nothing
   InPlayArea _ -> pure Nothing
   InVehicle _ -> pure Nothing
@@ -61,7 +60,6 @@ onSameLocation :: (HasCallStack, HasGame m) => InvestigatorId -> Placement -> m 
 onSameLocation iid = \case
   AttachedToLocation lid -> fieldMap InvestigatorLocation (== Just lid) iid
   AtLocation lid -> fieldMap InvestigatorLocation (== Just lid) iid
-  ActuallyLocation lid -> fieldMap InvestigatorLocation (== Just lid) iid
   InVehicle aid -> do
     field AssetLocation aid >>= \case
       Nothing -> pure False
@@ -100,7 +98,10 @@ onSameLocation iid = \case
       (==)
       (field InvestigatorLocation iid')
       (field InvestigatorLocation iid)
-  AsSwarm eid _ -> onSameLocation iid =<< field EnemyPlacement eid
+  AsSwarm eid _ ->
+    fieldMay EnemyPlacement eid >>= \case
+      Nothing -> pure False
+      Just placement' -> onSameLocation iid placement'
   Unplaced -> pure False
   Global -> pure True
   Limbo -> pure False

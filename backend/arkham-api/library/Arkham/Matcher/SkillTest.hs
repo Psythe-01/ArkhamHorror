@@ -23,6 +23,7 @@ import GHC.OverloadedLabels
 data SkillTestMatcher
   = WhileInvestigating LocationMatcher
   | WhileAttackingAnEnemy EnemyMatcher
+  | WhileAttacking
   | WhileEvadingAnEnemy EnemyMatcher
   | WhileParleyingWithAnEnemy EnemyMatcher
   | WhileParleying
@@ -55,6 +56,7 @@ data SkillTestMatcher
   | PerilousSkillTest
   | IfSkillTestMatcher SkillTestMatcher SkillTestMatcher SkillTestMatcher
   | SkillTestBeforeRevealingChaosTokens
+  | SkillTestWithCommittedCards CardListMatcher
   deriving stock (Show, Eq, Ord, Data, Generic)
 
 instance IsLabel "willpower" SkillTestMatcher where
@@ -85,7 +87,7 @@ instance IsLabel "fighting" SkillTestMatcher where
   fromLabel = WhileAttackingAnEnemy AnyEnemy
 
 instance IsLabel "attacking" SkillTestMatcher where
-  fromLabel = WhileAttackingAnEnemy AnyEnemy
+  fromLabel = WhileAttacking
 
 instance IsLabel "evading" SkillTestMatcher where
   fromLabel = WhileEvadingAnEnemy AnyEnemy

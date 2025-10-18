@@ -59,7 +59,9 @@ instance Query SkillMatcher
 instance Query StoryMatcher
 instance Query ChaosTokenMatcher
 instance Query TargetMatcher
+instance Query SourceMatcher
 instance Query TreacheryMatcher
+instance Query KeyMatcher
 
 instance Projection Act
 instance Projection Agenda
@@ -104,7 +106,6 @@ runMessages
      )
   => Maybe (Message -> IO ())
   -> m ()
-
 preloadModifiers :: (HasCallStack, Monad m) => Game -> m Game
 handleTraitRestrictedModifiers :: Monad m => Game -> m Game
 handleBlanked :: Monad m => Game -> m Game

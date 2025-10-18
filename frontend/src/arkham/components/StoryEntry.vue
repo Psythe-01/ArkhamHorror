@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { imgsrc, formatContent } from '@/arkham/helpers';
 import { Game } from '@/arkham/types/Game';
-import type { Read, FlavorTextEntry } from '@/arkham/types/Question';
+import type { Read } from '@/arkham/types/Question';
 import Token from '@/arkham/components/Token.vue';
 import { useI18n } from 'vue-i18n';
 import FormattedEntry from '@/arkham/components/FormattedEntry.vue';
@@ -13,7 +13,9 @@ export interface Props {
   playerId: string
 }
 
+const grunge = `url(${imgsrc('grunge.png')})`
 const checkpoint_fleur = `url(${imgsrc('checkpoint_fleur.png')})`
+const black_fleur = `url(${imgsrc('black_fleur.png')})`
 const props = defineProps<Props>()
 const emit = defineEmits(['choose'])
 const choose = (idx: number) => emit('choose', idx)
@@ -60,7 +62,9 @@ const focusedChaosTokens = computed(() => props.game.focusedChaosTokens)
   <div class="intro-text">
     <div class="entry">
       <h1 v-if="question.flavorText.title">{{maybeFormat(question.flavorText.title)}}</h1>
-      <Token v-for="(focusedToken, index) in focusedChaosTokens" :key="index" :token="focusedToken" :playerId="playerId" :game="game" @choose="() => {}" />
+      <section v-if="focusedChaosTokens.length > 0" class="focused-tokens">
+        <Token v-for="(focusedToken, index) in focusedChaosTokens" :key="index" :token="focusedToken" :playerId="playerId" :game="game" @choose="() => {}" />
+      </section>
       <div class="entry-body">
         <img :src="imgsrc(`cards/${cardCode.replace('c', '')}.avif`)" v-for="cardCode in readCards" class="card no-overlay" />
         <FormattedEntry v-for="(paragraph, index) in question.flavorText.body" :key="index" :entry="paragraph" />
@@ -79,7 +83,7 @@ const focusedChaosTokens = computed(() => props.game.focusedChaosTokens)
   </div>
 </template>
 
-<style lang="scss" scoped>
+<style scoped>
 .entry {
   border-radius: 5px;
   background: #DCD6D0;
@@ -140,6 +144,97 @@ const focusedChaosTokens = computed(() => props.game.focusedChaosTokens)
       border-image-width: 50px;
       content: "";
     }
+  }
+  &:has(.black) {
+    background-image: v-bind(grunge);
+    background-size: cover;
+    max-height: min-content;
+  }
+}
+
+.hunted, :deep(.hunted) {
+  display: grid;
+  &:has(> div:first-child > img) {
+    grid-template-columns: 1fr 2fr;
+  }
+  &:has(> div:last-child > img) {
+    grid-template-columns: 2fr 1fr;
+  }
+  max-height: min-content;
+  --image-top: 60px;
+
+  div:first-child:has(img) {
+    width: 100%;
+    margin-top: var(--image-top);
+    max-height: min-content;
+    display: flex;
+    flex-direction: column;
+    img {
+      object-fit: cover;
+      height: calc(80vh - var(--image-top));
+      align-self: flex-end;
+    }
+  }
+
+  div:has(~ div:last-child > img) {
+    margin-left: 20px;
+  }
+
+  div:last-child:has(img) {
+    width: 100%;
+    margin-top: var(--image-top);
+    max-height: min-content;
+    display: flex;
+    flex-direction: column;
+    img {
+      object-fit: cover;
+      height: calc(80vh - var(--image-top));
+      align-self: flex-end;
+    }
+  }
+}
+
+.black, :deep(.black) {
+  background-color: rgba(0,0,0,0.1);
+  box-shadow: unset;
+  margin-right: 20px;
+  border: 5px solid #000;
+  border-radius: 60px;
+  &::after {
+    border: 5px solid rgba(0,0,0,0.3);
+    border-radius: 25px;
+    position: absolute;
+    inset: 0px;
+    box-sizing: border-box;
+    content: "";
+    filter: blur(0.25em);
+    z-index: 1;
+  }
+  h1 {
+    color: #000 !important;
+    font-family: "Unquiet Spirits", sans-serif !important;
+    font-weight: 500;
+    border: 0 !important;
+    text-transform: uppercase;
+    text-align: center;
+    &::after {
+      border: 0 !important;
+    }
+  }
+  padding: 50px;
+  position: relative;
+  &::before {
+    z-index: 2;
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    inset-block: -5px;
+    inset-inline: -25px;
+    border-image-source: v-bind(black_fleur);
+    border-image-slice: 49.9%;
+    border-image-repeat: no-repeat;
+    border-image-width: 90px;
+    content: "";
   }
 }
 
@@ -280,6 +375,15 @@ a.button {
   :deep(p.anke) {
     font-family: "Anke";
   }
+
+  :deep(div:has(> img)) {
+    width: 25%;
+    min-width: min(300px, 25vw);
+    flex: 0;
+    img {
+      border-radius: 4%;
+    }
+  }
 }
 
 .pick-cards {
@@ -290,6 +394,9 @@ a.button {
 
   img {
     transition: box-shadow 0.1s ease-in-out, transform 0.1s ease-in-out;
+    border-radius: 4%;
+    flex: 1;
+    max-width: min(500px, 30vw);
   }
 
   img:hover {
@@ -301,6 +408,17 @@ a.button {
 .pick {
   cursor: pointer;
   flex-basis: 20%;
+}
+
+.focused-tokens {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.9);
+  padding: 10px;
+  border-radius: 10px;
 }
 
 </style>

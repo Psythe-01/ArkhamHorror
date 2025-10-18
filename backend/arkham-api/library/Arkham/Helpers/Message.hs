@@ -51,8 +51,15 @@ drawCardsWith i source n f = DrawCards i $ f $ newCardDraw source i n
 drawEncounterCard :: Sourceable source => InvestigatorId -> source -> Message
 drawEncounterCard i source = drawEncounterCards i source 1
 
+drawEncounterCardEdit :: Sourceable source => InvestigatorId -> source -> (CardDraw Message -> CardDraw Message) -> Message
+drawEncounterCardEdit i source = drawEncounterCardsEdit i source 1
+
 drawEncounterCards :: Sourceable source => InvestigatorId -> source -> Int -> Message
 drawEncounterCards i source n = DrawCards i $ newCardDraw source Deck.EncounterDeck n
+
+drawEncounterCardsEdit :: Sourceable source => InvestigatorId -> source -> Int -> (CardDraw Message -> CardDraw Message) -> Message
+drawEncounterCardsEdit = drawEncounterCardsWith
+
 
 drawCardsIfCan
   :: (MonadRandom m, Sourceable source, HasGame m, AsId investigator, IdOf investigator ~ InvestigatorId)
@@ -325,6 +332,12 @@ pattern R7 = ScenarioResolution (Resolution 7)
 pattern R8 :: Message
 pattern R8 = ScenarioResolution (Resolution 8)
 
+pattern R9 :: Message
+pattern R9 = ScenarioResolution (Resolution 9)
+
+pattern R10 :: Message
+pattern R10 = ScenarioResolution (Resolution 10)
+
 gainSurge :: (Sourceable a, Targetable a) => a -> Message
 gainSurge a = GainSurge (toSource a) (toTarget a)
 
@@ -541,6 +554,16 @@ revealing
   -> Zone
   -> Message
 revealing iid (toSource -> source) (toTarget -> target) zone = Search $ mkSearch Revealing iid source target [(zone, PutBack)] (basic AnyCard) ReturnCards
+
+revealingEdit
+  :: (Targetable target, Sourceable source)
+  => InvestigatorId
+  -> source
+  -> target
+  -> Zone
+  -> (Search -> Search)
+  -> Message
+revealingEdit iid (toSource -> source) (toTarget -> target) zone f = Search $ f $ mkSearch Revealing iid source target [(zone, PutBack)] (basic AnyCard) ReturnCards
 
 takeResources :: Sourceable source => InvestigatorId -> source -> Int -> Message
 takeResources iid (toSource -> source) n = TakeResources iid n source False

@@ -132,6 +132,7 @@ const lostSouls = computed(() => props.enemy.tokens[TokenType.LostSoul])
 const bounties = computed(() => props.enemy.tokens[TokenType.Bounty])
 const evidence = computed(() => props.enemy.tokens[TokenType.Evidence])
 const warnings = computed(() => props.enemy.tokens[TokenType.Warning])
+const seals = computed(() => props.enemy.tokens[TokenType.Seal])
 
 const omnipotent = computed(() => {
   const {modifiers} = props.enemy
@@ -139,6 +140,11 @@ const omnipotent = computed(() => {
   return modifiers.some(modifier =>
     modifier.type.tag === "OtherModifier" && modifier.type.contents === "Omnipotent"
   )
+})
+
+const important = computed(() => {
+  const {modifiers} = props.enemy
+  return modifiers.some((m) => m.type.tag === "UIModifier" && m.type.contents.tag === "ImportantToScenario") ?? false
 })
 
 const health = computed(() => {
@@ -213,6 +219,9 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
       <template v-else>
         <div class="card-frame" ref="frame">
           <div class="card-wrapper" :class="{ exhausted: isExhausted }">
+            <span class="important" v-if="important">
+              <font-awesome-icon :icon="['fa', 'circle-exclamation']" />
+            </span>
             <img v-if="isTrueForm" :src="image"
               class="card enemy"
               :class="{ dragging, 'enemy--can-interact': canInteract, attached}"
@@ -242,7 +251,7 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
 
           <div class="pool">
             <div class="keys" v-if="keys.length > 0">
-              <Key v-for="key in keys" :key="keyToId(key)" :name="key" />
+              <Key v-for="key in keys" :key="keyToId(key)" :name="key" :game="game" :playerId="playerId" @choose="choose" />
             </div>
             <PoolItem v-if="!omnipotent && !attached" type="health" :amount="enemyDamage" />
             <PoolItem v-if="doom && doom > 0" type="doom" :amount="doom" />
@@ -253,6 +262,7 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
             <PoolItem v-if="bounties && bounties > 0" type="resource" :amount="bounties" />
             <PoolItem v-if="evidence && evidence > 0" type="resource" tooltip="Evidence" :amount="evidence" />
             <PoolItem v-if="warnings && warnings > 0" type="resource" tooltip="Warning" :amount="warnings" />
+            <PoolItem v-if="seals && seals > 0" type="resource" tooltip="Seal" :amount="seals" />
             <PoolItem v-if="enemy.cardsUnderneath.length > 0" type="card" :amount="enemy.cardsUnderneath.length" />
             <Token
               v-for="(sealedToken, index) in enemy.sealedChaosTokens"
@@ -335,7 +345,7 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
   </div>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .small-treachery :deep(.card) {
   height: calc(var(--card-width) * 0.35);
 }
@@ -385,7 +395,9 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
     width: 20px;
   }
 
-  pointer-events: none;
+  &:not(:has(.key--can-interact)) {
+    pointer-events: none;
+  }
 }
 
 .exhausted {
@@ -422,7 +434,7 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
     left: 100%;
     transform: translateY(50%) translateZ(0);
     z-index: 20000000000;
-    //z-index: 0;
+    /*z-index: 0;*/
   }
 
   &.left {
@@ -472,5 +484,25 @@ function startDrag(event: DragEvent, enemy: Arkham.Enemy) {
   object-fit: cover;
   object-position: left bottom;
   height: calc(var(--card-width)*0.6);
+}
+
+.important {
+  position: absolute;
+  bottom: 10%;
+  border-radius: 1000px;
+  font-size: 2.6em;
+  color: var(--important);
+  filter: drop-shadow(0px 0px 1px #000) drop-shadow(0px 0px 2px #000);
+  pointer-events: none;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  max-width: 40%;
+  max-height: min-content;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
 }
 </style>

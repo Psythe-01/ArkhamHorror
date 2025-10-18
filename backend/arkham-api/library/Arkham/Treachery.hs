@@ -657,6 +657,10 @@ allTreacheries =
       SomeTreacheryCard offerYouCannotRefuse
     , SomeTreacheryCard finePrint
     , SomeTreacheryCard sellYourSoul
+    , --- Return to The Depths Of Yoth [rttfa]
+      SomeTreacheryCard perilsOfYoth
+    , --- Return to Shattered Aeons [rttfa]
+      SomeTreacheryCard unknowablePast
     , --- Cult of Pnakotus [rttfa]
       SomeTreacheryCard fromAnotherTime
     , --- Doom Expedition [rttfa]
@@ -668,6 +672,30 @@ allTreacheries =
       SomeTreacheryCard wrathOfYig
     , -- Return to the Circle Undone
       SomeTreacheryCard damned
+    , --- Return to The Wages of Sin [rttcu]
+      SomeTreacheryCard witchweed
+    , --- Return to Union and Disillusion [rttcu]
+      SomeTreacheryCard brazierEnchantment
+    , --- Hexcraft [rttcu]
+      SomeTreacheryCard trespasser
+    , SomeTreacheryCard despoiled
+    , SomeTreacheryCard maligned
+    , --- Impending Evils [rttcu]
+      SomeTreacheryCard impendingEvils
+    , --- Unspeakable Fate [rttcu]
+      SomeTreacheryCard unavoidableDemise
+    , SomeTreacheryCard fateOfAllFoolsUnspeakableFate
+    , --- City of the Damned [rttcu]
+      SomeTreacheryCard viceAndVillainy
+    , SomeTreacheryCard unhallowedLand
+    , --- Unstable Realm [rttcu]
+      SomeTreacheryCard unstableEnergies
+    , SomeTreacheryCard fromTheOtherSide
+    , --- Chilling Mists [rttcu]
+      SomeTreacheryCard supernaturalTempest
+    , SomeTreacheryCard mistsFromBeyond
+    , --- Bloodthirsy Spirits [rttcu]
+      SomeTreacheryCard bloodthirstySpirits
     , -- Nathaniel Cho
       SomeTreacheryCard selfDestructive
     , -- Harvey Walters
@@ -726,6 +754,19 @@ allTreacheries =
     , SomeTreacheryCard secretDoorTheMidwinterGala
     , SomeTreacheryCard terrorGate
     , SomeTreacheryCard violentCommandsTheMidwinterGala
+    , --- Film Fatale
+      SomeTreacheryCard flipTheScript
+    , SomeTreacheryCard foundFootage
+    , SomeTreacheryCard action
+    , SomeTreacheryCard breakALeg
+    , SomeTreacheryCard bleedingReality
+    , SomeTreacheryCard lastLooks
+    , SomeTreacheryCard creatureFeature
+    , SomeTreacheryCard celestialShower
+    , SomeTreacheryCard primordialTerror
+    , SomeTreacheryCard unexpectedTransformation
+    , SomeTreacheryCard hellfire
+    , SomeTreacheryCard vampiresKiss
     , --- The Blob That Ate Everything ELSE!
       SomeTreacheryCard realityAcid5U21
     , -- Parallel

@@ -37,7 +37,7 @@ import Arkham.Act.Acts (
  )
 import Arkham.Agenda.Agendas (
   awakeningEffect,
-  lostMemoriesEffect,
+  showbusinessAsUsualEffect,
   theLoversVIEffect,
   theRedDepthsEffect,
   theWaterRisesEffect,
@@ -151,22 +151,20 @@ import Arkham.Investigator.Investigators (
 import Arkham.Location.Locations (
   cursedShoresEffect,
   enchantedWoodsLostWoodsEffect,
-  hereticsGravesSpectral_171Effect,
   longWayAroundEffect,
   restaurantEffect,
   unvisitedIsleMossCoveredStepsEffect,
   unvisitedIsleStandingStonesEffect,
  )
 import Arkham.Skill.Skills (
-  nimbleEffect,
   copycat3Effect,
   defiance2Effect,
   defianceEffect,
   fey1Effect,
   hatchetManEffect,
   momentum1Effect,
+  nimbleEffect,
   prescientEffect,
-  surprisingFind1Effect,
   theEyeOfTruth5Effect,
  )
 import Arkham.Story.Stories (
@@ -419,7 +417,7 @@ allEffects =
     , ("02190", SomeEffect defianceEffect)
     , ("02228", SomeEffect exposeWeakness1Effect)
     , ("02230", SomeEffect luckyDice2Effect)
-    , ("02236", SomeEffect undimensionedAndUnseenTabletToken)
+    , ("02236", SomeEffect $ noop "02236")
     , ("02246", SomeEffect $ noop "02246")
     , ("02270", SomeEffect $ noop "02270")
     , ("02323", SomeEffect yogSothothEffect)
@@ -453,7 +451,7 @@ allEffects =
     , ("04156", SomeEffect highRoller2Effect)
     , ("04195", SomeEffect exposeWeakness3Effect)
     , ("04198", SomeEffect defiance2Effect)
-    , ("04239", SomeEffect lostMemoriesEffect)
+    , ("04239", SomeEffect $ noop "04239")
     , ("04271", SomeEffect mistsOfRlyeh4Effect)
     , ("04283", SomeEffect theRedDepthsEffect)
     , ("04306", SomeEffect vantagePointEffect)
@@ -473,7 +471,7 @@ allEffects =
     , ("05114", SomeEffect meatCleaverEffect)
     , ("05157", SomeEffect witherEffect)
     , ("05158", SomeEffect sixthSenseEffect)
-    , ("05171", SomeEffect hereticsGravesSpectral_171Effect)
+    , ("05171", SomeEffect $ noop "05171")
     , ("05178j", SomeEffect unfinishedBusiness_JEffect)
     , ("05194", SomeEffect grislyTotemSeeker3Effect)
     , ("05195", SomeEffect grislyTotemSurvivor3Effect)
@@ -497,7 +495,7 @@ allEffects =
     , ("06162", SomeEffect gregoryGryEffect)
     , ("06195", SomeEffect thirtyFiveWinchesterEffect)
     , ("06201", SomeEffect spectralRazorEffect)
-    , ("06278", SomeEffect surprisingFind1Effect)
+    , ("06278", SomeEffect $ noop "06278")
     , ("06279", SomeEffect $ noop "06279")
     , ("06319", SomeEffect restlessJourneyFallacyEffect)
     , ("06320", SomeEffect restlessJourneyHardshipEffect)
@@ -580,6 +578,7 @@ allEffects =
     , ("60431", SomeEffect $ noop "60431")
     , ("60432", SomeEffect $ noop "60432")
     , ("60512", SomeEffect willToSurviveEffect)
+    , ("72002", SomeEffect showbusinessAsUsualEffect)
     , ("81007", SomeEffect cursedShoresEffect)
     , ("82026", SomeEffect gildedVoltoEffect)
     , ("82035", SomeEffect mesmerizeEffect)

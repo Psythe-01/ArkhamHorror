@@ -1,5 +1,6 @@
 import * as JsonDecoder from 'ts.data.json';
 import { Card, cardDecoder } from '@/arkham/types/Card';
+import { ChaosToken, chaosTokenDecoder } from '@/arkham/types/ChaosToken';
 import { BreachStatus, breachStatusDecoder } from '@/arkham/types/Breach';
 import { Modifier, modifierDecoder } from '@/arkham/types/Modifier';
 import { ArkhamKey, arkhamKeyDecoder } from '@/arkham/types/Key';
@@ -44,7 +45,15 @@ export type Location = {
   floodLevel: FloodLevel | null;
   keys: ArkhamKey[];
   seals: Seal[];
+  sealedChaosTokens: ChaosToken[];
 }
+
+type GameValue = { tag: "Static", contents: number } | { tag: "PerPlayer", contents: number }
+
+export const gameValueDecoder = JsonDecoder.oneOf<GameValue>([
+  JsonDecoder.object({ tag: JsonDecoder.literal("Static"), contents: JsonDecoder.number() }, 'Static'),
+  JsonDecoder.object({ tag: JsonDecoder.literal("PerPlayer"), contents: JsonDecoder.number() }, 'PerPlayer')
+], 'GameValue')
 
 export const locationDecoder = JsonDecoder.object<Location>(
   {
@@ -53,7 +62,7 @@ export const locationDecoder = JsonDecoder.object<Location>(
     id: JsonDecoder.string(),
     cardId: JsonDecoder.string(),
     tokens: tokensDecoder,
-    shroud: JsonDecoder.nullable(JsonDecoder.number()),
+    shroud: JsonDecoder.nullable(gameValueDecoder.map(v => v.contents)),
     revealed: JsonDecoder.boolean(),
     investigators: JsonDecoder.array<string>(JsonDecoder.string(), 'InvestigatorId[]'),
     enemies: JsonDecoder.array<string>(JsonDecoder.string(), 'EnemyId[]'),
@@ -69,6 +78,7 @@ export const locationDecoder = JsonDecoder.object<Location>(
     floodLevel: JsonDecoder.nullable(floodLevelDecoder),
     keys: JsonDecoder.array<ArkhamKey>(arkhamKeyDecoder, 'Key[]'),
     seals: JsonDecoder.array<Seal>(sealDecoder, 'Seal[]'),
+    sealedChaosTokens: JsonDecoder.array<ChaosToken>(chaosTokenDecoder, 'ChaosToken[]'),
   },
   'Location',
 );

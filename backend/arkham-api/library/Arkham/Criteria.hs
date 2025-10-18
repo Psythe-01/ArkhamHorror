@@ -9,8 +9,7 @@ import Arkham.Prelude
 
 import {-# SOURCE #-} Arkham.Calculation
 import Arkham.CampaignLog
-import Arkham.Duration
-import Arkham.CampaignLogKey (CampaignLogKey, IsCampaignLogKey(..))
+import Arkham.CampaignLogKey (CampaignLogKey, IsCampaignLogKey (..))
 import Arkham.Campaigns.TheForgottenAge.Supply (Supply)
 import Arkham.Capability (Capabilities, Capable (..), FromSource)
 import Arkham.Card.CardCode
@@ -18,6 +17,7 @@ import Arkham.Cost.Status (CostStatus)
 import Arkham.Criteria.Override
 import Arkham.Customization
 import Arkham.Direction (GridDirection)
+import Arkham.Duration
 import Arkham.GameValue (GameValue (Static))
 import Arkham.History.Types (HistoryType)
 import Arkham.Key
@@ -32,6 +32,7 @@ import Arkham.Matcher.Enemy
 import Arkham.Matcher.Event
 import Arkham.Matcher.History
 import Arkham.Matcher.Investigator
+import Arkham.Matcher.Key
 import Arkham.Matcher.Location
 import Arkham.Matcher.Patterns
 import Arkham.Matcher.Phase
@@ -204,10 +205,12 @@ data Criterion
   | InvestigatorIsAlone
   | InvestigatorsHaveSpendableClues ValueMatcher
   | LocationExists LocationMatcher
+  | AgendaCount Int AgendaMatcher
   | AssetCount Int AssetMatcher
-  | EnemyCount Int EnemyMatcher
+  | EnemyCount ValueMatcher EnemyMatcher
   | EventCount ValueMatcher EventMatcher
   | LocationCount Int LocationMatcher
+  | KeyCount ValueMatcher KeyMatcher
   | ExtendedCardCount Int ExtendedCardMatcher
   | AllUndefeatedInvestigatorsResigned
   | EachUndefeatedInvestigator InvestigatorMatcher
@@ -435,6 +438,18 @@ ignoreAloofFightOverride matcher = fightOverride $ IgnoreAloofFightable <> match
 evadeOverride :: EnemyMatcher -> EnemyMatcher
 evadeOverride = CanEvadeEnemyWithOverride . CriteriaOverride . EnemyCriteria . ThisEnemy
 
+canFightCriteria :: Criterion
+canFightCriteria = canFightCriteriaObeyAloof True
+
+canFightIgnoreAloof :: Criterion
+canFightIgnoreAloof = canFightCriteriaObeyAloof False
+
+canFightCriteriaObeyAloof :: Bool -> Criterion
+canFightCriteriaObeyAloof obeyAloof =
+  OnSameLocation <> EnemyCriteria (ThisEnemy $ wrapAloof $ CanBeAttackedBy You) <> CanAttack
+ where
+  wrapAloof = if obeyAloof then (<> EnemyOneOf [not_ AloofEnemy, EnemyIsEngagedWith Anyone]) else id
+
 instance Semigroup EnemyCriterion where
   EnemyMatchesCriteria xs <> EnemyMatchesCriteria ys =
     EnemyMatchesCriteria $ xs <> ys
@@ -477,4 +492,15 @@ $(deriveJSON defaultOptions ''CostReduction)
 $(deriveJSON defaultOptions ''DiscardSignifier)
 $(deriveJSON defaultOptions ''UnderZone)
 $(deriveJSON defaultOptions ''EnemyCriterion)
-$(deriveJSON defaultOptions ''Criterion)
+$(deriveToJSON defaultOptions ''Criterion)
+
+instance FromJSON Criterion where
+  parseJSON = withObject "Criterion" $ \o -> do
+    tag <- o .: "tag"
+    case (tag :: Text) of
+      "EnemyCount" -> do
+        contents <- (Right <$> o .: "contents") <|> (Left <$> o .: "contents")
+        pure $ case contents of
+          Right (vm, em) -> EnemyCount vm em
+          Left (n, em) -> EnemyCount (GreaterThanOrEqualTo (Static n)) em
+      _ -> $(mkParseJSON defaultOptions ''Criterion) (Object o)

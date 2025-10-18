@@ -166,13 +166,17 @@ startAbilityPayment activeCost@ActiveCost {activeCostId} iid window abilityType 
     ActionAbilityWithSkill actions' _ _ -> handleActions $ Action.Activate : actions'
     ActionAbility actions' _ -> handleActions $ Action.Activate : actions'
  where
-  checkAttackOfOpportunity actions =
-    not provokeAttacksOfOpportunity && all (`notElem` nonAttackOfOpportunityActions) actions
+  checkAttackOfOpportunity mods actions =
+    not provokeAttacksOfOpportunity
+      && ( all (`notElem` nonAttackOfOpportunityActions) actions
+             || any (\action -> ActionDoesNotCauseAttacksOfOpportunity action `elem` mods) actions
+         )
   handleActions actions = do
+    mods <- getModifiers iid
     beforeWindowMsg <- checkWindows [mkWhen $ Window.PerformAction iid action | action <- actions]
     pushAll
       $ [BeginAction, beforeWindowMsg, PayCosts activeCostId]
-      <> [CheckAttackOfOpportunity iid False | checkAttackOfOpportunity actions]
+      <> [CheckAttackOfOpportunity iid False | checkAttackOfOpportunity mods actions]
 
 nonAttackOfOpportunityActions :: [Action]
 nonAttackOfOpportunityActions = [#fight, #evade, #resign, #parley]
@@ -229,6 +233,21 @@ payCost msg c iid skipAdditionalCosts cost = do
     ChooseEnemyCost mtch -> do
       enemies <- select mtch
       push $ chooseOne player $ targetLabels enemies $ only . pay . ChosenEnemyCost
+      pure c
+    ChooseEnemyCostAndMaybeFieldClueCost mtch fld -> do
+      spendable <- getSpendableClueCount [iid]
+      enemies <-
+        select mtch >>= mapMaybeM \enemy -> runMaybeT do
+          clueCount <- MaybeT $ field fld enemy
+          guard $ spendable >= clueCount
+          pure (enemy, clueCount)
+
+      push $ chooseOne player $ flip map enemies \(enemy, clues) ->
+        targetLabel
+          enemy
+          [ pay $ ChosenEnemyCost enemy
+          , pay $ ClueCost (Static clues)
+          ]
       pure c
     ChosenEnemyCost eid -> withPayment $ ChosenEnemyPayment eid
     CostIfCustomization customization cost1 cost2 -> do
@@ -510,7 +529,7 @@ payCost msg c iid skipAdditionalCosts cost = do
         discardIt = \case
           PlayerCard pc -> [AddToDiscard owner pc | owner <- maybeToList (pcOwner pc)]
           EncounterCard ec -> [AddToEncounterDiscard ec]
-          _ -> error "Unhandled"
+          _ -> error "Unhandled DiscardUnderneathCardCost"
       pushAll
         [ FocusCards cards
         , chooseOrRunOne player [targetLabel card (UnfocusCards : discardIt card) | card <- cards]
@@ -604,6 +623,20 @@ payCost msg c iid skipAdditionalCosts cost = do
         [iid'] -> do
           push $ InvestigatorDirectDamage iid' source x 0
           withPayment $ DirectDamagePayment x
+        _ -> error "exactly one investigator expected for direct damage"
+    DirectHorrorCost _ investigatorMatcher x -> do
+      investigators <- select investigatorMatcher
+      case investigators of
+        [iid'] -> do
+          push $ InvestigatorDirectDamage iid' source 0 x
+          withPayment $ DirectHorrorPayment x
+        _ -> error "exactly one investigator expected for direct damage"
+    DirectDamageAndHorrorCost _ investigatorMatcher x y -> do
+      investigators <- select investigatorMatcher
+      case investigators of
+        [iid'] -> do
+          push $ InvestigatorDirectDamage iid' source x y
+          withPayment $ DirectDamagePayment x <> DirectHorrorPayment y
         _ -> error "exactly one investigator expected for direct damage"
     InvestigatorDamageCost source' investigatorMatcher damageStrategy x -> do
       investigators <- select investigatorMatcher
@@ -812,7 +845,7 @@ payCost msg c iid skipAdditionalCosts cost = do
           if ucost < 0
             then pure (-ucost)
             else pure 0
-        _ -> pure 0 
+        _ -> pure 0
       withPayment $ ResourcePayment $ x + extra
     AdditionalActionsCost -> do
       actionRemainingCount <- field InvestigatorRemainingActions iid
@@ -1046,6 +1079,20 @@ payCost msg c iid skipAdditionalCosts cost = do
               push
                 $ Ask lead
                 $ ChoosePaymentAmounts (displayCostType cost) (Just $ TotalAmountTarget totalClues) paymentOptions
+      pure c
+    -- push (SpendClues totalClues iids)
+    -- withPayment $ CluePayment totalClues
+    SameLocationGroupClueCost x locationMatcher -> do
+      totalClues <- getPlayerCountValue x
+      locations <-
+        select locationMatcher >>= filterM \lid -> do
+          total <- getSpendableClueCount =<< select (investigatorAt lid)
+          pure $ total >= totalClues
+      lead <- getLeadPlayer
+      push
+        $ chooseOrRunOne
+          lead
+          [targetLabel lid [pay (GroupClueCost x $ LocationWithId lid)] | lid <- locations]
       pure c
     -- push (SpendClues totalClues iids)
     -- withPayment $ CluePayment totalClues

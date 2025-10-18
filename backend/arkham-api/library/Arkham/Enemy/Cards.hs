@@ -96,6 +96,8 @@ allEncounterEnemyCards =
       , acolyteOfUmordhoth
       , agentOfTheKing
       , alejandroVela
+      , allosaurusIndomitablePredator
+      , allosaurusRampagingPredator
       , almaHill
       , ancientZoog
       , anetteMason
@@ -130,6 +132,7 @@ allEncounterEnemyCards =
       , brotherhoodAcolyte
       , brotherhoodCultist
       , brownJenkin
+      , captiveSubjects
       , carlSanfordDeathlessFanatic
       , carnevaleSentinel
       , catacombsDocent
@@ -153,6 +156,7 @@ allEncounterEnemyCards =
       , crazedShoggoth
       , creatureOutOfDemhe
       , cultistOfTheEnclave
+      , curiousMoonNosyNuisance
       , dagonAwakenedAndEnraged
       , dagonAwakenedAndEnragedIntoTheMaelstrom
       , dagonDeepInSlumber
@@ -162,6 +166,7 @@ allEncounterEnemyCards =
       , danielChesterfield
       , darkYoungHost
       , declanPearce
+      , dmitriKonstantinovTakingTheLongView
       , caldwellPhilipsCompelledByDreams
       , carlSanfordIntimidatingPresence
       , valeriyaAntonovaDontMessWithHer
@@ -178,6 +183,7 @@ allEncounterEnemyCards =
       , donLagorio
       , drAmyKenslerProfessorOfBiology
       , drMalaSinhaDaringPhysician
+      , dromaeosaurus
       , eaterOfTheDepths
       , elderThingScavenger
       , elisabettaMagro
@@ -186,6 +192,7 @@ allEncounterEnemyCards =
       , emergingDeepOne
       , enragedGug
       , enthralledSecurityGuard
+      , erikaStrandPossessedProducer
       , eztliGuardian
       , fanatic
       , fangOfYig
@@ -196,6 +203,7 @@ allEncounterEnemyCards =
       , frenziedExplorer
       , furtiveZoog
       , gavriellaMizrah
+      , ghostLight
       , ghoulFromTheDepths
       , ghoulMinion
       , ghoulPriest
@@ -327,6 +335,9 @@ allEncounterEnemyCards =
       , pitchSpider
       , poleman
       , poltergeist
+      , possessedExtra_19
+      , possessedExtra_20
+      , possessedExtra_21
       , possessedOathspeaker
       , preyingByakhee
       , priestOfAThousandMasks
@@ -341,6 +352,8 @@ allEncounterEnemyCards =
       , ravenousGhoul
       , reawakenedElderThing
       , relentlessDarkYoung
+      , returnToHeretic_38
+      , returnToHeretic_39
       , riftSeeker
       , roachSwarm
       , roaldEllsworthIntrepidExplorer
@@ -349,16 +362,19 @@ allEncounterEnemyCards =
       , rookieCop
       , ruthTurner
       , salvatoreNeri
+      , saturniteDrudgeMilitia
+      , saturniteMonarchGraciousHost
+      , saturniteMonarchInAnAlienLand
       , savageShantak
-      , theBloodlessMan
-      , theBloodlessManUnleashed
       , savioCorvi
       , scholarFromYith
       , scientistOfYith
+      , screechingBanshee
       , screechingByakhee
       , sebastienMoreau
       , seekerOfCarcosa
       , seepingNightmare
+      , senatorNathanielRhodesAdeptPolitician
       , serpentFromYoth
       , serpentGuardian
       , serpentOfTenochtitlan
@@ -392,6 +408,10 @@ allEncounterEnemyCards =
       , terrorOfTheStarsBringerOfIceAndDeath
       , terrorOfTheStarsGuardianOfForbiddenPeaks
       , theAmalgam
+      , theBloodlessMan
+      , theBloodlessManUnleashed
+      , theContessaEnraged
+      , theContessaNeedlesslySmug
       , theCrawlingMist
       , theConductorBeastFromBeyondTheGate
       , theExperiment
@@ -413,12 +433,14 @@ allEncounterEnemyCards =
       , umordhoth
       , unsealedPhantasm
       , valentinoRivas
+      , vampireThrall
       , vassalOfTheLurker
       , vengefulSerpent
       , vengefulSpecter
       , vengefulWitch
       , victoriaDevereux
       , webSpinner
+      , werewolf
       , whippoorwill
       , whippoorwillUnionAndDisillusion
       , wingedOne
@@ -1327,6 +1349,8 @@ ichtacaScionOfYig =
       { cdCardTraits = setFromList [Humanoid, Monster, Serpent, Elite]
       , cdKeywords = setFromList [Keyword.Hunter, Keyword.Retaliate]
       , cdVictoryPoints = Just 2
+      , cdDoubleSided = True
+      , cdOtherSide = Just "04325b"
       }
 
 alejandroVela :: CardDef
@@ -1336,6 +1360,8 @@ alejandroVela =
       { cdCardTraits = setFromList [Humanoid, Cultist, Elite]
       , cdKeywords = setFromList [Keyword.Alert, Keyword.Hunter]
       , cdVictoryPoints = Just 2
+      , cdDoubleSided = True
+      , cdOtherSide = Just "04326b"
       }
 
 formlessSpawn :: CardDef
@@ -1465,36 +1491,43 @@ heretic_A :: CardDef
 heretic_A =
   (enemy "05178a" "Heretic" TheWagesOfSin 1)
     { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "05178b"
     }
 
 heretic_C :: CardDef
 heretic_C =
   (enemy "05178c" "Heretic" TheWagesOfSin 1)
     { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "05178d"
     }
 
 heretic_E :: CardDef
 heretic_E =
   (enemy "05178e" "Heretic" TheWagesOfSin 1)
     { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "05178f"
     }
 
 heretic_G :: CardDef
 heretic_G =
   (enemy "05178g" "Heretic" TheWagesOfSin 1)
     { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "05178h"
+    , cdOutOfPlayEffects = [InDiscardEffect]
     }
 
 heretic_I :: CardDef
 heretic_I =
   (enemy "05178i" "Heretic" TheWagesOfSin 1)
     { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "05178j"
     }
 
 heretic_K :: CardDef
 heretic_K =
   (enemy "05178k" "Heretic" TheWagesOfSin 1)
     { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "05178l"
     }
 
 vengefulWitch :: CardDef
@@ -3003,6 +3036,12 @@ featheredSerpent =
     , cdVengeancePoints = Just 1
     }
 
+captiveSubjects :: CardDef
+captiveSubjects =
+  (enemy "53058" "Captive Subjects" ReturnToTheCityOfArchives 2)
+    { cdCardTraits = singleton Monster
+    , cdKeywords = setFromList [Keyword.Aloof, Keyword.Retaliate]
+    }
 
 brotherhoodAcolyte :: CardDef
 brotherhoodAcolyte =
@@ -3040,6 +3079,40 @@ serpentGuardian =
     , cdKeywords = setFromList [Keyword.Aloof]
     }
 
+senatorNathanielRhodesAdeptPolitician :: CardDef
+senatorNathanielRhodesAdeptPolitician =
+  (enemy "54025" ("Senator Nathanial Rhodes" <:> "Adept Politician") ReturnToAtDeathsDoorstep 1)
+    { cdCardTraits = setFromList [Humanoid, Cultist, SilverTwilight]
+    , cdKeywords = singleton Keyword.Aloof
+    }
+
+dmitriKonstantinovTakingTheLongView :: CardDef
+dmitriKonstantinovTakingTheLongView =
+  (enemy "54026" ("Dmitri Konstantinov" <:> "Taking the Long View") ReturnToAtDeathsDoorstep 1)
+    { cdCardTraits = setFromList [Humanoid, Cultist, SilverTwilight]
+    }
+
+returnToHeretic_38 :: CardDef
+returnToHeretic_38 =
+  (enemy "54038" "Heretic" ReturnToTheWagesOfSin 1)
+    { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "54038b"
+    }
+
+returnToHeretic_39 :: CardDef
+returnToHeretic_39 =
+  (enemy "54039" "Heretic" ReturnToTheWagesOfSin 1)
+    { cdCardTraits = setFromList [Monster, Geist, Witch, Spectral, Elite]
+    , cdOtherSide = Just "54039b"
+    }
+
+screechingBanshee :: CardDef
+screechingBanshee =
+  (enemy "54074" "Screeching Banshee" BloodthirstySpirits 2)
+    { cdCardTraits = setFromList [Monster, Geist, Spectral]
+    , cdKeywords = singleton Keyword.Hunter
+    }
+
 tommyMalloy :: CardDef
 tommyMalloy =
   unique
@@ -3052,12 +3125,12 @@ valeriyaAntonovaDontMessWithHer :: CardDef
 valeriyaAntonovaDontMessWithHer =
   unique
     $ (enemy "71016b" ("Valeriya Antonova" <:> "Don't Mess With Her") TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
-        , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
-        , cdDoubleSided = True
-        , cdOtherSide = Just "71016"
-        , cdVictoryPoints = Just 0
-        }
+      { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
+      , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
+      , cdDoubleSided = True
+      , cdOtherSide = Just "71016"
+      , cdVictoryPoints = Just 0
+      }
 
 rookieCop :: CardDef
 rookieCop =
@@ -3070,68 +3143,68 @@ caldwellPhilipsCompelledByDreams :: CardDef
 caldwellPhilipsCompelledByDreams =
   unique
     $ (enemy "71022b" ("Caldwell Philips" <:> "Compelled by Dreams") TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
-        , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
-        , cdDoubleSided = True
-        , cdOtherSide = Just "71022"
-        , cdVictoryPoints = Just 0
-        }
+      { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
+      , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
+      , cdDoubleSided = True
+      , cdOtherSide = Just "71022"
+      , cdVictoryPoints = Just 0
+      }
 
 johnnyValoneHereToCollect :: CardDef
 johnnyValoneHereToCollect =
   unique
     $ (enemy "71028b" ("Johnny Valone" <:> "Here to Collect") TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
-        , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
-        , cdDoubleSided = True
-        , cdOtherSide = Just "71028"
-        , cdVictoryPoints = Just 0
-        }
+      { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
+      , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
+      , cdDoubleSided = True
+      , cdOtherSide = Just "71028"
+      , cdVictoryPoints = Just 0
+      }
 
 carlSanfordIntimidatingPresence :: CardDef
 carlSanfordIntimidatingPresence =
   unique
     $ (enemy "71034b" ("Carl Sanford" <:> "Intimidating Presence") TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
-        , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
-        , cdDoubleSided = True
-        , cdOtherSide = Just "71034"
-        , cdVictoryPoints = Just 0
-        }
+      { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
+      , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
+      , cdDoubleSided = True
+      , cdOtherSide = Just "71034"
+      , cdVictoryPoints = Just 0
+      }
 
 williamBainDefiantToTheLast :: CardDef
 williamBainDefiantToTheLast =
   unique
     $ (enemy "71040b" ("William Bain" <:> "Defiant to the Last") TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
-        , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
-        , cdDoubleSided = True
-        , cdOtherSide = Just "71040"
-        , cdVictoryPoints = Just 0
-        }
+      { cdCardTraits = setFromList [Humanoid, Leader, Rival, Elite]
+      , cdKeywords = setFromList [Keyword.Aloof, Keyword.Hunter]
+      , cdDoubleSided = True
+      , cdOtherSide = Just "71040"
+      , cdVictoryPoints = Just 0
+      }
 
 theBloodlessMan :: CardDef
 theBloodlessMan =
   unique
     $ (enemy "71045" "The Bloodless Man" TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, LanternClub, Elite]
-        , cdKeywords =
-            setFromList
-              [ Keyword.Aloof
-              , Keyword.Patrol (LocationWithAsset $ AssetWithTrait Guest)
-              ]
-        , cdDoubleSided = True
-        , cdOtherSide = Just "71045b"
-        }
+      { cdCardTraits = setFromList [Humanoid, LanternClub, Elite]
+      , cdKeywords =
+          setFromList
+            [ Keyword.Aloof
+            , Keyword.Patrol (LocationWithAsset $ AssetWithTrait Guest)
+            ]
+      , cdDoubleSided = True
+      , cdOtherSide = Just "71045b"
+      }
 
 theBloodlessManUnleashed :: CardDef
 theBloodlessManUnleashed =
   unique
     $ (enemy "71045b" "The Bloodless Man" TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Monster, Abomination, Elite]
-        , cdKeywords = setFromList [Keyword.Hunter, Keyword.Massive]
-        , cdVictoryPoints = Just 1
-        }
+      { cdCardTraits = setFromList [Monster, Abomination, Elite]
+      , cdKeywords = setFromList [Keyword.Hunter, Keyword.Massive]
+      , cdVictoryPoints = Just 1
+      }
 
 enragedGug :: CardDef
 enragedGug =
@@ -3158,15 +3231,149 @@ declanPearce :: CardDef
 declanPearce =
   unique
     $ (enemy "71051" "Declan Pearce" TheMidwinterGala 1)
-        { cdCardTraits = setFromList [Humanoid, LanternClub, Elite]
-        , cdKeywords = setFromList [Keyword.Hunter]
-        , cdVictoryPoints = Just 0
-        }
+      { cdCardTraits = setFromList [Humanoid, LanternClub, Elite]
+      , cdKeywords = setFromList [Keyword.Hunter]
+      , cdVictoryPoints = Just 0
+      }
 
 lanternClubMember :: CardDef
 lanternClubMember =
   (enemy "71053" "Lantern Club Member" TheMidwinterGala 4)
     { cdCardTraits = setFromList [Humanoid, LanternClub]
+    }
+
+possessedExtra_19 :: CardDef
+possessedExtra_19 =
+  (enemy "72019" "Possessed Extra" FilmFatale 1)
+    { cdCardTraits = setFromList [Humanoid, Possessed]
+    }
+
+possessedExtra_20 :: CardDef
+possessedExtra_20 =
+  (enemy "72020" "Possessed Extra" FilmFatale 1)
+    { cdCardTraits = setFromList [Humanoid, Possessed]
+    }
+
+possessedExtra_21 :: CardDef
+possessedExtra_21 =
+  (enemy "72021" "Possessed Extra" FilmFatale 1)
+    { cdCardTraits = setFromList [Humanoid, Possessed]
+    }
+
+erikaStrandPossessedProducer :: CardDef
+erikaStrandPossessedProducer =
+  unique
+    $ (enemy "72022" ("Erika Strand" <:> "Possessed Producer") FilmFatale 1)
+      { cdCardTraits = setFromList [Humanoid, Possessed, Elite]
+      , cdVictoryPoints = Just 1
+      }
+
+ghostLight :: CardDef
+ghostLight =
+  (enemy "72023" "Ghost Light" FilmFatale 2)
+    { cdCardTraits = setFromList [Monster, Geist]
+    , cdKeywords = singleton Keyword.Hunter
+    }
+
+saturniteMonarchGraciousHost :: CardDef
+saturniteMonarchGraciousHost =
+  unique
+    $ (enemy "72032" ("Saturnite Monarch" <:> "Gracious Host") CosmicJourney 1)
+      { cdCardTraits = setFromList [Saturnite, Elite]
+      , cdKeywords = singleton Keyword.Aloof
+      , cdVictoryPoints = Just 1
+      , cdDoubleSided = True
+      , cdOtherSide = Just "72032b"
+      }
+
+saturniteMonarchInAnAlienLand :: CardDef
+saturniteMonarchInAnAlienLand =
+  unique
+    $ (enemy "72032b" ("Saturnite Monarch" <:> "In an Alien Land") CosmicJourney 1)
+      { cdCardTraits = setFromList [Monster, Saturnite, Elite]
+      , cdKeywords = setFromList [Keyword.Alert, Keyword.Hunter, Keyword.Massive]
+      , cdVictoryPoints = Just 1
+      , cdDoubleSided = True
+      , cdOtherSide = Just "72032"
+      }
+
+saturniteDrudgeMilitia :: CardDef
+saturniteDrudgeMilitia =
+  (enemy "72033" "Saturnite Drudge Militia" CosmicJourney 2)
+    { cdCardTraits = setFromList [Monster, Saturnite]
+    , cdKeywords = setFromList [Keyword.Elusive, Keyword.Retaliate]
+    }
+
+curiousMoonNosyNuisance :: CardDef
+curiousMoonNosyNuisance =
+  unique
+    $ (enemy "72036b" ("Curious Moon" <:> "Nosy Nuisance") CosmicJourney 1)
+      { cdCardTraits = setFromList [Satellite, Cosmos, Elite]
+      , cdKeywords = singleton Keyword.Massive
+      , cdDoubleSided = True
+      , cdOtherSide = Just "72036"
+      }
+
+allosaurusIndomitablePredator :: CardDef
+allosaurusIndomitablePredator =
+  (enemy "72044" ("Allosaurus" <:> "Indomitable Predator") ForgottenIsland 1)
+    { cdCardTraits = setFromList [Creature, Dinosaur, Elite]
+    , cdKeywords = setFromList [Keyword.Alert, Keyword.Hunter, Keyword.Massive, Keyword.Retaliate]
+    , cdVictoryPoints = Just 1
+    , cdDoubleSided = True
+    , cdOtherSide = Just "72044b"
+    }
+
+allosaurusRampagingPredator :: CardDef
+allosaurusRampagingPredator =
+  (enemy "72044b" ("Allosaurus" <:> "Rampaging Predator") ForgottenIsland 1)
+    { cdCardTraits = setFromList [Creature, Dinosaur, Elite]
+    , cdKeywords = setFromList [Keyword.Alert, Keyword.Hunter, Keyword.Massive, Keyword.Retaliate]
+    , cdVictoryPoints = Just 1
+    , cdDoubleSided = True
+    , cdOtherSide = Just "72044"
+    }
+
+dromaeosaurus :: CardDef
+dromaeosaurus =
+  (enemy "72045" "Dromaeosaurus" ForgottenIsland 3)
+    { cdCardTraits = setFromList [Creature, Dinosaur]
+    , cdKeywords = setFromList [Keyword.Elusive, Keyword.Hunter]
+    }
+
+theContessaNeedlesslySmug :: CardDef
+theContessaNeedlesslySmug =
+  (enemy "72055" ("The Contessa" <:> "Needlessly Smug") AbominableContessa 1)
+    { cdCardTraits = setFromList [Humanoid, Monster, Elite]
+    , cdKeywords = singleton Keyword.Elusive
+    , cdVictoryPoints = Just 1
+    , cdDoubleSided = True
+    , cdOtherSide = Just "72055b"
+    }
+
+theContessaEnraged :: CardDef
+theContessaEnraged =
+  (enemy "72055b" ("The Contessa" <:> "Enraged") AbominableContessa 1)
+    { cdCardTraits = setFromList [Humanoid, Monster, Elite]
+    , cdKeywords = singleton Keyword.Elusive
+    , cdVictoryPoints = Just 1
+    , cdDoubleSided = True
+    , cdOtherSide = Just "72055"
+    }
+
+vampireThrall :: CardDef
+vampireThrall =
+  (enemy "72056" "Vampire Thrall" AbominableContessa 2)
+    { cdCardTraits = setFromList [Humanoid, Monster]
+    , cdKeywords = setFromList [Keyword.Elusive, Keyword.Hunter]
+    }
+
+werewolf :: CardDef
+werewolf =
+  (enemy "72057" "Werewolf" AbominableContessa 1)
+    { cdCardTraits = setFromList [Humanoid, Monster, Creature]
+    , cdKeywords = setFromList [Keyword.Elusive, Keyword.Hunter, Keyword.Retaliate]
+    , cdVictoryPoints = Just 0
     }
 
 bogGator :: CardDef

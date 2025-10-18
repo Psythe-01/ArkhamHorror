@@ -54,6 +54,7 @@ import Arkham.Window qualified as Window
 import Control.Monad.Writer.Class
 import Data.Foldable (foldrM)
 import Data.Map.Monoidal.Strict (MonoidalMap (..))
+import Data.Map.Strict qualified as Map
 
 getBaseValueDifferenceForSkillTest
   :: HasGame m => InvestigatorId -> SkillTest -> m Int
@@ -86,11 +87,17 @@ getSkillTestResolvedChaosTokens = maybe [] skillTestResolvedChaosTokens <$> getS
 getSkillTestInvestigator :: HasGame m => m (Maybe InvestigatorId)
 getSkillTestInvestigator = fmap skillTestInvestigator <$> getSkillTest
 
+withSkillTestInvestigator :: HasGame m => (InvestigatorId -> m ()) -> m ()
+withSkillTestInvestigator = whenJustM getSkillTestInvestigator
+
 isSkillTestInvestigator :: HasGame m => InvestigatorId -> m Bool
 isSkillTestInvestigator iid = (== Just iid) <$> getSkillTestInvestigator
 
 getSkillTestSource :: HasGame m => m (Maybe Source)
 getSkillTestSource = getsSkillTest skillTestSource
+
+withSkillTestSource :: HasGame m => (Source -> m ()) -> m ()
+withSkillTestSource = whenJustM (getsSkillTest skillTestSource)
 
 isBasicEvade :: HasGame m => m Bool
 isBasicEvade =
@@ -128,9 +135,10 @@ getSkillTestAction :: HasGame m => m (Maybe Action)
 getSkillTestAction = join <$> getsSkillTest skillTestAction
 
 withSkillTestAction :: HasGame m => (Action -> m ()) -> m ()
-withSkillTestAction f = getSkillTestAction >>= \case
-  Just s -> f s
-  Nothing -> pure ()
+withSkillTestAction f =
+  getSkillTestAction >>= \case
+    Just s -> f s
+    Nothing -> pure ()
 
 getSkillTestSkillTypes :: HasGame m => m [SkillType]
 getSkillTestSkillTypes =
@@ -337,9 +345,10 @@ getSkillTestTargetedEnemy :: HasGame m => m (Maybe EnemyId)
 getSkillTestTargetedEnemy = ((.enemy) =<<) <$> getSkillTestTarget
 
 withSkillTestTargetedEnemy :: HasGame m => (EnemyId -> m ()) -> m ()
-withSkillTestTargetedEnemy f = getSkillTestTargetedEnemy >>= \case
-  Just eid -> f eid
-  Nothing -> pure ()
+withSkillTestTargetedEnemy f =
+  getSkillTestTargetedEnemy >>= \case
+    Just eid -> f eid
+    Nothing -> pure ()
 
 isInvestigating
   :: (HasGame m, AsId location, IdOf location ~ LocationId) => InvestigatorId -> location -> m Bool
@@ -453,7 +462,13 @@ getAlternateSkill st sType = do
 
 getModifiedSkillTestDifficulty :: (HasCallStack, HasGame m) => SkillTest -> m Int
 getModifiedSkillTestDifficulty s = do
-  modifiers' <- getModifiers (SkillTestTarget s.id)
+  -- difficulty can be on the investigator, see: @Despoiled@
+  let
+    forSkillTest = \case
+      Difficulty {} -> True
+      _ -> False
+  imods <- filter forSkillTest <$> getModifiers s.investigator
+  modifiers' <- (imods <>) <$> getModifiers (SkillTestTarget s.id)
   baseDifficulty <- getBaseSkillTestDifficulty s
   let preModifiedDifficulty = foldr applyPreModifier baseDifficulty modifiers'
   let doubledDifficulty = foldr applyDoubler preModifiedDifficulty modifiers'
@@ -652,6 +667,9 @@ getSkillTestDifficultyDifferenceFromBaseValue iid skillTest = do
 withSkillTest :: HasGame m => (SkillTestId -> m ()) -> m ()
 withSkillTest = whenJustM getSkillTestId
 
+duringSkillTest :: HasGame m => m () -> m ()
+duringSkillTest body = whenJustM getSkillTestId \_ -> body
+
 getCanCancelSkillTestEffects :: HasGame m => m Bool
 getCanCancelSkillTestEffects = do
   getSkillTestTarget >>= \case
@@ -699,6 +717,8 @@ skillTestMatches iid source st mtchr = case Matcher.replaceYouMatcher iid mtchr 
     sourceMatches (skillTestSource st) sourceMatcher
   Matcher.SkillTestBeforeRevealingChaosTokens ->
     pure $ null $ skillTestRevealedChaosTokens st
+  Matcher.SkillTestWithCommittedCards cardListMatcher ->
+    cardListMatches (concat $ Map.elems $ skillTestCommittedCards st) cardListMatcher
   Matcher.SkillTestWithRevealedChaosToken matcher ->
     anyM (`Query.matches` Matcher.IncludeSealed matcher)
       $ skillTestRevealedChaosTokens st
@@ -743,6 +763,9 @@ skillTestMatches iid source st mtchr = case Matcher.replaceYouMatcher iid mtchr 
     _ -> pure False
   Matcher.SkillTestOnEvent eventMatcher -> case st.source.event of
     Just eid -> elem eid <$> select eventMatcher
+    _ -> pure False
+  Matcher.WhileAttacking -> case skillTestAction st of
+    Just Action.Fight -> pure True
     _ -> pure False
   Matcher.WhileAttackingAnEnemy enemyMatcher -> case skillTestAction st of
     Just Action.Fight -> case st.target.enemy of

@@ -23,6 +23,7 @@ import Arkham.Helpers.Query
 import Arkham.Helpers.Scenario
 import Arkham.Helpers.SkillTest
 import Arkham.Helpers.Tarot
+import Arkham.Helpers.Window (checkWindows)
 import Arkham.History
 import Arkham.Id
 import Arkham.Investigator.Types qualified as Field
@@ -37,7 +38,7 @@ import Arkham.Scenario.Scenarios
 import Arkham.Slot
 import Arkham.Tarot
 import Arkham.Treachery.Cards qualified as Treacheries
-import Arkham.Window (duringTurnWindow)
+import Arkham.Window (duringTurnWindow, mkWhen)
 import Arkham.Window qualified as Window
 import Data.Map.Strict qualified as Map
 
@@ -486,8 +487,6 @@ instance RunMessage Scenario where
       if any (`elem` modifiers') [IgnoreChaosTokenEffects, IgnoreChaosToken]
         then pure x
         else go
-    ScenarioResolution _ -> do
-      overAttrs (\a -> a & inResolutionL .~ True) <$> go
     SetupInvestigators -> do
       result <- go
       let isTowerXVI = (== TheTowerXVI) . toTarotArcana
@@ -509,6 +508,15 @@ instance RunMessage Scenario where
       for_ damned $ \iid -> do
         push $ DrawAndChooseTarot iid Reversed 1
       pure result
+    ScenarioResolution {} -> do
+      -- This is a bit of a hack, but we want to trigger the end game window
+      -- before going into the resolution
+      if not $ attr scenarioInResolution x
+        then do
+          whenEnd <- checkWindows [mkWhen Window.EndOfGame]
+          pushAll [whenEnd, msg]
+          pure $ overAttrs (\a -> a & inResolutionL .~ True) x
+        else go
     _ -> go
    where
     go = Scenario <$> runMessage msg s
@@ -649,7 +657,21 @@ allScenarios =
     , ("53038", SomeScenario returnToTheBoundaryBeyond)
     , ("53045", SomeScenario returnToHeartOfTheEldersPart1)
     , ("53048", SomeScenario returnToHeartOfTheEldersPart2)
+    , ("53053", SomeScenario returnToTheCityOfArchives)
+    , ("53059", SomeScenario returnToTheDepthsOfYoth)
+    , ("53061", SomeScenario returnToShatteredAeons)
+    , ("53066", SomeScenario returnToTurnBackTime)
+    , ("54016", SomeScenario returnToDisappearanceAtTheTwilightEstate)
+    , ("54017", SomeScenario returnToTheWitchingHour)
+    , ("54024", SomeScenario returnToAtDeathsDoorstep)
+    , ("54029", SomeScenario returnToTheSecretName)
+    , ("54034", SomeScenario returnToTheWagesOfSin)
+    , ("54042", SomeScenario returnToForTheGreaterGood)
+    , ("54046", SomeScenario returnToUnionAndDisillusion)
+    , ("54049", SomeScenario returnToInTheClutchesOfChaos)
+    , ("54056", SomeScenario returnToBeforeTheBlackThrone)
     , ("71001", SomeScenario theMidwinterGala)
+    , ("72001", SomeScenario filmFatale)
     , ("81001", SomeScenario curseOfTheRougarou)
     , ("82001", SomeScenario carnevaleOfHorrors)
     , ("84001", SomeScenario murderAtTheExcelsiorHotel)
@@ -745,7 +767,21 @@ scenarioEncounterSets =
     , ("53038", EncounterSet.ReturnToTheBoundaryBeyond)
     , ("53045", EncounterSet.ReturnToHeartOfTheElders)
     , ("53048", EncounterSet.ReturnToHeartOfTheElders)
+    , ("53053", EncounterSet.ReturnToTheCityOfArchives)
+    , ("53059", EncounterSet.ReturnToTheDepthsOfYoth)
+    , ("53061", EncounterSet.ReturnToShatteredAeons)
+    , ("53066", EncounterSet.ReturnToTurnBackTime)
+    , ("54016", EncounterSet.ReturnToDisappearanceAtTheTwilightEstate)
+    , ("54017", EncounterSet.ReturnToTheWitchingHour)
+    , ("54024", EncounterSet.ReturnToAtDeathsDoorstep)
+    , ("54029", EncounterSet.ReturnToTheWitchingHour)
+    , ("54034", EncounterSet.ReturnToTheWagesOfSin)
+    , ("54042", EncounterSet.ReturnToForTheGreaterGood)
+    , ("54046", EncounterSet.ReturnToUnionAndDisillusion)
+    , ("54049", EncounterSet.ReturnToInTheClutchesOfChaos)
+    , ("54056", EncounterSet.ReturnToBeforeTheBlackThrone)
     , ("71001", EncounterSet.TheMidwinterGala)
+    , ("72001", EncounterSet.FilmFatale)
     , ("81001", EncounterSet.CurseOfTheRougarou)
     , ("82001", EncounterSet.CarnevaleOfHorrors)
     , ("84001", EncounterSet.MurderAtTheExcelsiorHotel)

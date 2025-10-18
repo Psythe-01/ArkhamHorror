@@ -2,16 +2,19 @@ import * as JsonDecoder from 'ts.data.json';
 import { Ability, abilityDecoder } from '@/arkham/types/Ability';
 import { chaosBagStepDecoder, ChaosBagStep } from '@/arkham/types/ChaosBag';
 import { SkillType, skillTypeDecoder } from '@/arkham/types/SkillType';
+import { ArkhamKey, arkhamKeyDecoder } from '@/arkham/types/Key';
 import { Target, targetDecoder } from '@/arkham/types/Target';
 import { tarotCardDecoder, TarotCard } from '@/arkham/types/TarotCard';
 
 export enum MessageType {
   LABEL = 'Label',
+  INVALID_LABEL = 'InvalidLabel',
   TARGET_LABEL = 'TargetLabel',
   TOOLTIP_LABEL = 'TooltipLabel',
   SKILL_LABEL = 'SkillLabel',
   SKILL_LABEL_WITH_LABEL = 'SkillLabelWithLabel',
   CARD_LABEL = 'CardLabel',
+  KEY_LABEL = 'KeyLabel',
   PORTRAIT_LABEL = 'PortraitLabel',
   COMPONENT_LABEL = 'ComponentLabel',
   ABILITY_LABEL = 'AbilityLabel',
@@ -48,6 +51,11 @@ export type Done = {
 
 export type Label = {
   tag: MessageType.LABEL
+  label: string
+}
+
+export type InvalidLabel = {
+  tag: MessageType.INVALID_LABEL
   label: string
 }
 
@@ -216,6 +224,12 @@ export const cardLabelDecoder = JsonDecoder.object<CardLabel>(
     cardCode: JsonDecoder.string(),
   }, 'CardLabel')
 
+export const keyLabelDecoder = JsonDecoder.object<KeyLabel>(
+  {
+    tag: JsonDecoder.literal(MessageType.KEY_LABEL),
+    key: arkhamKeyDecoder
+  }, 'KeyLabel')
+
 export type PortraitLabel = {
   tag: MessageType.PORTRAIT_LABEL
   investigatorId: string
@@ -260,7 +274,7 @@ export const skillTestApplyResultsButtonDecoder = JsonDecoder.object<SkillTestAp
     tag: JsonDecoder.literal(MessageType.SKILL_TEST_APPLY_RESULTS_BUTTON),
   }, 'SkillTestApplyResultsButton')
 
-export type Message = Label | TooltipLabel | TargetLabel | SkillLabel | SkillLabelWithLabel | CardLabel | PortraitLabel | ComponentLabel | AbilityLabel | EndTurnButton | StartSkillTestButton | SkillTestApplyResultsButton | FightLabel | EvadeLabel | EngageLabel | GridLabel | TarotLabel | Done | ChaosTokenGroupChoice | EffectActionButton | SkipTriggersButton | CardPile;
+export type Message = Label | InvalidLabel | TooltipLabel | TargetLabel | SkillLabel | SkillLabelWithLabel | CardLabel | KeyLabel | PortraitLabel | ComponentLabel | AbilityLabel | EndTurnButton | StartSkillTestButton | SkillTestApplyResultsButton | FightLabel | EvadeLabel | EngageLabel | GridLabel | TarotLabel | Done | ChaosTokenGroupChoice | EffectActionButton | SkipTriggersButton | CardPile;
 
 export const skipTriggersDecoder = JsonDecoder.object<SkipTriggersButton>(
   {
@@ -279,6 +293,12 @@ export const labelDecoder = JsonDecoder.object<Label>(
     tag: JsonDecoder.literal(MessageType.LABEL),
     label: JsonDecoder.string()
   }, 'Label')
+
+export const invalidLabelDecoder = JsonDecoder.object<InvalidLabel>(
+  {
+    tag: JsonDecoder.literal(MessageType.INVALID_LABEL),
+    label: JsonDecoder.string()
+  }, 'InvalidLabel')
 
 export const pileCardDecoder = JsonDecoder.object<PileCard>(
   {
@@ -359,12 +379,14 @@ export const effectActionButtonDecoder = JsonDecoder.object<EffectActionButton>(
 export const messageDecoder = JsonDecoder.oneOf<Message>(
   [
     labelDecoder,
+    invalidLabelDecoder,
     cardPileDecoder,
     tooltipLabelDecoder,
     skillLabelDecoder,
     skillLabelWithLabelDecoder,
     targetLabelDecoder,
     cardLabelDecoder,
+    keyLabelDecoder,
     portraitLabelDecoder,
     componentLabelDecoder,
     abilityLabelDecoder,
@@ -380,9 +402,7 @@ export const messageDecoder = JsonDecoder.oneOf<Message>(
     chaosTokenGroupChoiceDecoder,
     effectActionButtonDecoder,
     skipTriggersDecoder,
-    JsonDecoder.succeed().flatMap((f) => {
-      return JsonDecoder.fail(f)
-    })
+    JsonDecoder.succeed().flatMap((f) => JsonDecoder.fail(f))
   ],
   'Message',
 );
@@ -400,6 +420,7 @@ export function choiceRequiresModal(c: Message) {
       return c.ability.displayAs;
     }
     case 'CardLabel': return true;
+    case 'KeyLabel': return false; // expect all keys to be visible
     case 'TarotLabel': return true;
     case 'ChaosTokenGroupChoice': return true;
     default: return false;

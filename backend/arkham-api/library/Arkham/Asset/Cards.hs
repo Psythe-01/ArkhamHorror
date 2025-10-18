@@ -50,6 +50,7 @@ allPlayerAssetCards =
       , ancientStoneKnowledgeOfTheElders4
       , ancientStoneMindsInHarmony4
       , ancientStoneTransientThoughts4
+      , andrePatelMadeForTheSpotlight
       , annaKaslow4
       , anotherDayAnotherDollar3
       , antikytheraPropheticTimepiece5
@@ -310,6 +311,7 @@ allPlayerAssetCards =
       , engineer
       , eonChart1
       , eonChart4
+      , erynnMacAoidhDevotedEnchantress
       , esotericAtlas1
       , esotericAtlas2
       , esotericFormula
@@ -961,8 +963,13 @@ allEncounterAssetCards =
       , yhanthleiStatueDynamicRelic
       , dianneDevineHidingAnOathUnspoken
       , partyGuest
+      , nightgauntSteed
       , jewelOfSarnath
       , theCustodian
+      , heliosTelescopeGateToTheCosmos
+      , staffOfTheSerpentRelicOfThePast
+      , accursedCapeShroudOfChaos
+      , rocketShipRattlingWithEnergy
       ]
 
 allSpecialPlayerAssetCards :: Map CardCode CardDef

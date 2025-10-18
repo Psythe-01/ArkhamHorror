@@ -42,7 +42,7 @@ data Window = Window
   , windowType :: WindowType
   , windowBatchId :: Maybe BatchId
   }
-  deriving stock (Show, Eq, Data)
+  deriving stock (Show, Eq, Ord, Data)
 
 replaceWindowType :: WindowType -> Window -> Window
 replaceWindowType wType window = window {windowType = wType}
@@ -69,9 +69,14 @@ windowTypes :: [Window] -> [WindowType]
 windowTypes = map windowType
 
 getBatchId :: [Window] -> BatchId
-getBatchId ((windowBatchId -> Just batchId) : _) = batchId
-getBatchId (_ : rest) = getBatchId rest
-getBatchId [] = error "No batch id found"
+getBatchId ws = case getMaybeBatchId ws of
+  Just batchId -> batchId
+  Nothing -> error "No BatchId found in windows"
+
+getMaybeBatchId :: [Window] -> Maybe BatchId
+getMaybeBatchId ((windowBatchId -> Just batchId) : _) = Just batchId
+getMaybeBatchId (_ : rest) = getMaybeBatchId rest
+getMaybeBatchId [] = Nothing
 
 duringTurnWindow :: InvestigatorId -> Window
 duringTurnWindow = mkWindow Timing.When . DuringTurn
@@ -126,7 +131,7 @@ data CardPlay = CardPlay
   { cardPlayedCard :: Card
   , cardPlayedNeedsAction :: Bool
   }
-  deriving stock (Show, Eq, Data)
+  deriving stock (Show, Ord, Eq, Data)
 
 instance HasField "card" CardPlay Card where
   getField = cardPlayedCard
@@ -136,6 +141,7 @@ instance HasField "needsAction" CardPlay Bool where
 
 data WindowType
   = AttemptToEvadeEnemy SkillTestId InvestigatorId EnemyId
+  | AttemptToFightEnemy SkillTestId InvestigatorId EnemyId
   | ResolvingRevelation InvestigatorId TreacheryId
   | VehicleLeaves AssetId LocationId
   | VehicleEnters AssetId LocationId
@@ -176,7 +182,7 @@ data WindowType
   | SpentClues InvestigatorId Int
   | DiscoveringLastClue InvestigatorId LocationId
   | SuccessfullyInvestigateWithNoClues InvestigatorId LocationId
-  | WouldDrawCard InvestigatorId DeckSignifier
+  | WouldDrawCard InvestigatorId CardDrawId DeckSignifier
   | DrawCard InvestigatorId Card DeckSignifier
   | DrawCards InvestigatorId [Card]
   | DrawChaosToken InvestigatorId ChaosToken
@@ -220,6 +226,7 @@ data WindowType
   | InvestigatorEliminated InvestigatorId
   | InvestigatorResigned InvestigatorId
   | LastClueRemovedFromAsset AssetId
+  | LastClueRemovedFromLocation LocationId
   | LeavePlay Target
   | Leaving InvestigatorId LocationId
   | MoveAction InvestigatorId LocationId LocationId
@@ -273,6 +280,7 @@ data WindowType
   | PutLocationIntoPlay InvestigatorId LocationId
   | LocationEntersPlay LocationId
   | RevealLocation InvestigatorId LocationId
+  | UnrevealedRevealLocation InvestigatorId LocationId
   | FlipLocation InvestigatorId LocationId
   | RevealChaosToken InvestigatorId ChaosToken
   | RevealChaosTokensDuringSkillTest InvestigatorId SkillTest [ChaosToken]
@@ -296,14 +304,14 @@ data WindowType
   | SuccessfulInvestigation InvestigatorId LocationId
   | SuccessfulParley InvestigatorId
   | TakeDamage Source DamageEffect Target Int
-  | TakeHorror Source Target
+  | TakeHorror Source Target Int
   | TookControlOfAsset InvestigatorId AssetId
   | TurnBegins InvestigatorId
   | TurnEnds InvestigatorId
   | WouldBeDiscarded Target
   | EntityDiscarded Source Target
   | WouldBeShuffledIntoDeck DeckSignifier Card
-  | WouldDrawEncounterCard InvestigatorId Phase
+  | WouldDrawEncounterCard InvestigatorId CardDrawId Phase
   | WouldFailSkillTest InvestigatorId Int
   | WouldPassSkillTest InvestigatorId Int
   | WouldReady Target
@@ -318,13 +326,13 @@ data WindowType
   | EnemiesAttackStep
   | AddingToCurrentDepth
   | EntersThreatArea InvestigatorId Card
-  | CancelledOrIgnoredCardOrGameEffect Source (Maybe CardId)-- Diana Stanley
+  | CancelledOrIgnoredCardOrGameEffect Source (Maybe CardId) -- Diana Stanley
   | ScenarioCountIncremented ScenarioCountKey
   | IncreasedAlarmLevel InvestigatorId
   | ScenarioEvent Text (Maybe InvestigatorId) Value
   | -- used to avoid checking a window
     DoNotCheckWindow
-  deriving stock (Show, Eq, Data)
+  deriving stock (Show, Eq, Ord, Data)
 
 mconcat
   [ deriveJSON defaultOptions ''IsDirect
@@ -336,6 +344,16 @@ mconcat
         parseJSON = withObject "WindowType" \o -> do
           tag :: Text <- o .: "tag"
           case tag of
+            "WouldDrawCard" -> do
+              contents <- (Left <$> o .: "contents") <|> (Right <$> o .: "contents")
+              case contents of
+                Right (i, cid, deck) -> pure $ WouldDrawCard i cid deck
+                Left (i, deck) -> pure $ WouldDrawCard i (CardDrawId UUID.nil) deck
+            "WouldDrawEncounterCard" -> do
+              contents <- (Left <$> o .: "contents") <|> (Right <$> o .: "contents")
+              case contents of
+                Right (i, cid, p) -> pure $ WouldDrawEncounterCard i cid p
+                Left (i, p) -> pure $ WouldDrawEncounterCard i (CardDrawId UUID.nil) p
             "CancelledOrIgnoredCardOrGameEffect" -> do
               contents <- (Left <$> o .: "contents") <|> (Right <$> o .: "contents")
               case contents of

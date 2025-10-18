@@ -13,11 +13,13 @@ import {-# SOURCE #-} Arkham.Card.EncounterCard
 import {-# SOURCE #-} Arkham.Card.PlayerCard
 import Arkham.ChaosToken.Types
 import Arkham.Id
+import Arkham.Key
 import Arkham.Matcher.Agenda
 import {-# SOURCE #-} Arkham.Matcher.Asset
 import Arkham.Matcher.Card
 import Arkham.Matcher.Enemy
 import Arkham.Phase
+import Arkham.Scenario.Deck
 import Arkham.Tarot
 import Arkham.Trait
 import Control.Lens (Getting)
@@ -40,7 +42,7 @@ data Target
   | SkillTestTarget SkillTestId
   | TreacheryTarget TreacheryId
   | EncounterDeckTarget
-  | ScenarioDeckTarget
+  | ScenarioDeckTarget ScenarioDeckKey
   | AgendaDeckTarget
   | ActDeckTarget
   | GameTarget
@@ -56,6 +58,7 @@ data Target
   | PhaseTarget Phase
   | ChaosTokenTarget ChaosToken
   | ChaosTokenFaceTarget ChaosTokenFace
+  | KeyTarget ArkhamKey
   | TestTarget
   | ResourceTarget InvestigatorId
   | YouTarget
@@ -220,6 +223,9 @@ instance Targetable SkillTestId where
 instance Targetable ChaosTokenFace where
   toTarget = ChaosTokenFaceTarget
 
+instance Targetable ScenarioDeckKey where
+  toTarget = ScenarioDeckTarget
+
 toActionTarget :: Target -> Target
 toActionTarget (ProxyTarget _ actionTarget) = actionTarget
 toActionTarget target = target
@@ -277,6 +283,11 @@ instance FromJSON Target where
   parseJSON = withObject "Target" \o -> do
     tag :: Text <- o .: "tag"
     case tag of
+      "ScenarioDeckTarget" -> do
+        contents <- (Right <$> o .: "contents") <|> pure (Left ())
+        case contents of
+          Right dkey -> pure $ ScenarioDeckTarget dkey
+          Left () -> pure $ ScenarioDeckTarget CultistDeck
       "AbilityTarget" -> do
         contents <- (Right <$> o .: "contents") <|> (Left <$> o .: "contents")
         case contents of
