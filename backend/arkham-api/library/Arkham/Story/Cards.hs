@@ -11,7 +11,7 @@ import Arkham.Trait
 
 allStoryCards :: Map CardCode CardDef
 allStoryCards =
-  (Homebrew.storiesMap <>)
+  ((Homebrew.storiesMap <> Homebrew.playerStoriesMap) <>)
     $ mapFromList
     $ map
       (toCardCode &&& id)
@@ -76,7 +76,14 @@ allStoryCards =
       , theSentry
       , seafloorFrieze
       , theUnderseaVault
+      , hiddenVault
+      , ancientRelic
+      , squamousParasite
       , underseaParasite
+      , obsidianRelic
+      , ancientVaultO
+      , ancientVaultN
+      , ancientVaultP
       , anotherPath
       , aStrangeGhoul
       , scoutingTheVale
@@ -144,6 +151,10 @@ allStoryCards =
       , dayThree
       , nightThree
       , westernWinds
+      , easternWinds
+      , erodedFriezeStory
+      , glyphOrreryStory
+      , skyRelicStory
       , ruthlessCharge
       , hurricaneForce
       , direGale
@@ -195,6 +206,9 @@ allStoryCards =
       , recoverTheSample
       , driveOffTheMiGo
       , defuseTheExplosives
+      , escortTheCar
+      , reclaimTheBrain
+      , preventTheirResearch
       , aNobleLegacyPast
       , aNobleLegacyPresent
       , aNobleLegacyFuture
@@ -412,10 +426,55 @@ seafloorFrieze = doubleSided $ story "11531b" "Seafloor Frieze" TheWesternWall
 theUnderseaVault :: CardDef
 theUnderseaVault = doubleSided $ story "11532b" "The Undersea Vault" TheWesternWall
 
+hiddenVault :: CardDef
+hiddenVault = doubleSided $ story "11579b" "Hidden Vault" TheApiary
+
+-- | Victory 1 is printed on this side, not on the asset front (11581).
+ancientRelic :: CardDef
+ancientRelic =
+  (doubleSided $ story "11581b" "Ancient Relic" TheApiary)
+    { cdVictoryPoints = Just 1
+    }
+
+-- | Victory 1 is printed on this side, not on the enemy front (11580).
+squamousParasite :: CardDef
+squamousParasite =
+  (doubleSided $ story "11580b" "Squamous Parasite" TheApiary)
+    { cdVictoryPoints = Just 1
+    }
+
 -- | Victory 1 is printed on this side, not on the enemy front (11549).
 underseaParasite :: CardDef
 underseaParasite =
   (doubleSided $ story "11549b" "Undersea Parasite" TheDrownedQuarter)
+    { cdVictoryPoints = Just 1
+    }
+
+-- | Victory 1 is printed on this side, not on the asset front (11550).
+obsidianRelic :: CardDef
+obsidianRelic =
+  (doubleSided $ story "11550b" "Obsidian Relic" TheDrownedQuarter)
+    { cdVictoryPoints = Just 1
+    }
+
+-- | Victory 1 is printed on this side, not on the treachery front (11608).
+ancientVaultO :: CardDef
+ancientVaultO =
+  (doubleSided $ story "11608b" "Ancient Vault" TheGrandVault)
+    { cdVictoryPoints = Just 1
+    }
+
+-- | Victory 1 is printed on this side, not on the treachery front (11609).
+ancientVaultN :: CardDef
+ancientVaultN =
+  (doubleSided $ story "11609b" "Ancient Vault" TheGrandVault)
+    { cdVictoryPoints = Just 1
+    }
+
+-- | Victory 1 is printed on this side, not on the treachery front (11610).
+ancientVaultP :: CardDef
+ancientVaultP =
+  (doubleSided $ story "11610b" "Ancient Vault" TheGrandVault)
     { cdVictoryPoints = Just 1
     }
 
@@ -598,7 +657,7 @@ barriersDecoysAndTraps :: CardDef
 barriersDecoysAndTraps = story "10627" "Barriers, Decoys, and Traps" TheLongestNight
 
 theAbyss :: CardDef
-theAbyss = story "10670b" "The Abyss" FateOfTheVale
+theAbyss = story "10670b" "The Abyss" FateOfTheVale & otherSideIs "10670"
 
 dayOne :: CardDef
 dayOne = story "10675" "Day One" TheFirstDay & otherSideIs "10675b"
@@ -620,49 +679,71 @@ nightThree = story "10679b" "Night Three" TheFinalDay & otherSideIs "10679"
 
 -- The Drowned City
 
+-- Two sides of one story card; Obsidian Canyons puts whichever side the
+-- expedition's heading calls for faceup.
 westernWinds :: CardDef
-westernWinds = doubleSided $ story "11640" "Western Winds" ObsidianCanyons
+westernWinds = story "11640" "Western Winds" ObsidianCanyons & otherSideIs "11640b"
+
+easternWinds :: CardDef
+easternWinds = story "11640b" "Eastern Winds" ObsidianCanyons & otherSideIs "11640"
+
+-- The Glyph backs of Obsidian Canyons' double-sided cards, suffixed to keep them
+-- distinct from the front-side defs of the same name in Arkham.Location.Cards and
+-- Arkham.Treachery.Cards.
+erodedFriezeStory :: CardDef
+erodedFriezeStory = doubleSided $ story "11664b" "Eroded Frieze" ObsidianCanyons
+
+glyphOrreryStory :: CardDef
+glyphOrreryStory = doubleSided $ story "11662b" "Glyph Orrery" ObsidianCanyons
+
+-- Victory 1 is printed on this side, as it is on the campaign's other relic backs;
+-- the asset front carries none.
+skyRelicStory :: CardDef
+skyRelicStory =
+  (doubleSided $ story "11663b" "Sky Relic" ObsidianCanyons) {cdVictoryPoints = Just 1}
 
 -- The modular "Cthulhu deck" of action cards (The Doom of Arkham Pt II) shares a
 -- distinct card back.
 cthulhuDeckBack :: Map Text Value
 cthulhuDeckBack = mapFromList [("customBack", String "back_cthulhu_deck.jpg")]
 
-cthulhuDeckCard :: CardCode -> Name -> EncounterSet -> CardDef
-cthulhuDeckCard cCode name encounterSet = (story cCode name encounterSet) {cdMeta = cthulhuDeckBack}
+-- | The quantity is the number of copies in the 18-card Cthulhu deck.
+cthulhuDeckCard :: CardCode -> Name -> Int -> EncounterSet -> CardDef
+cthulhuDeckCard cCode name quantity encounterSet =
+  (story cCode name encounterSet) {cdMeta = cthulhuDeckBack, cdEncounterSetQuantity = Just quantity}
 
 ruthlessCharge :: CardDef
-ruthlessCharge = cthulhuDeckCard "11705" "Ruthless Charge" TheDoomOfArkhamPartII
+ruthlessCharge = cthulhuDeckCard "11705" "Ruthless Charge" 2 TheDoomOfArkhamPartII
 
 hurricaneForce :: CardDef
-hurricaneForce = cthulhuDeckCard "11706" "Hurricane Force" TheDoomOfArkhamPartII
+hurricaneForce = cthulhuDeckCard "11706" "Hurricane Force" 2 TheDoomOfArkhamPartII
 
 direGale :: CardDef
-direGale = cthulhuDeckCard "11707" "Dire Gale" TheDoomOfArkhamPartII
+direGale = cthulhuDeckCard "11707" "Dire Gale" 2 TheDoomOfArkhamPartII
 
 dreadsight :: CardDef
-dreadsight = cthulhuDeckCard "11708" "Dreadsight" TheDoomOfArkhamPartII
+dreadsight = cthulhuDeckCard "11708" "Dreadsight" 2 TheDoomOfArkhamPartII
 
 demolition :: CardDef
-demolition = cthulhuDeckCard "11709" "Demolition" TheDoomOfArkhamPartII
+demolition = cthulhuDeckCard "11709" "Demolition" 1 TheDoomOfArkhamPartII
 
 fifthEye :: CardDef
-fifthEye = cthulhuDeckCard "11710" "Fifth Eye" TheDoomOfArkhamPartII
+fifthEye = cthulhuDeckCard "11710" "Fifth Eye" 1 TheDoomOfArkhamPartII
 
 seismicStomp :: CardDef
-seismicStomp = cthulhuDeckCard "11711" "Seismic Stomp" TheDoomOfArkhamPartII
+seismicStomp = cthulhuDeckCard "11711" "Seismic Stomp" 2 TheDoomOfArkhamPartII
 
 eldritchCall :: CardDef
-eldritchCall = cthulhuDeckCard "11712" "Eldritch Call" TheDoomOfArkhamPartII
+eldritchCall = cthulhuDeckCard "11712" "Eldritch Call" 2 TheDoomOfArkhamPartII
 
 psychicRebuke :: CardDef
-psychicRebuke = cthulhuDeckCard "11713" "Psychic Rebuke" TheDoomOfArkhamPartII
+psychicRebuke = cthulhuDeckCard "11713" "Psychic Rebuke" 1 TheDoomOfArkhamPartII
 
 risingTides :: CardDef
-risingTides = cthulhuDeckCard "11714" "Rising Tides" TheDoomOfArkhamPartII
+risingTides = cthulhuDeckCard "11714" "Rising Tides" 2 TheDoomOfArkhamPartII
 
 hopeFades :: CardDef
-hopeFades = cthulhuDeckCard "11715" "Hope Fades" TheDoomOfArkhamPartII
+hopeFades = cthulhuDeckCard "11715" "Hope Fades" 1 TheDoomOfArkhamPartII
 
 returnToSickeningReality_23 :: CardDef
 returnToSickeningReality_23 = doubleSided $ story "52023" "Sickening Reality" ReturnToTheLastKing
@@ -811,6 +892,15 @@ driveOffTheMiGo =
 defuseTheExplosives :: CardDef
 defuseTheExplosives =
   victory 1 $ addTrait Part1 $ doubleSided $ story "85024" "Defuse the Explosives" MiGoIncursion
+
+escortTheCar :: CardDef
+escortTheCar = victory 1 $ addTrait Part1 $ doubleSided $ story "89011" "Escort the Car" MiGoIncursionII
+
+reclaimTheBrain :: CardDef
+reclaimTheBrain = victory 1 $ addTrait Part1 $ doubleSided $ story "89014" "Reclaim the Brain" MiGoIncursionII
+
+preventTheirResearch :: CardDef
+preventTheirResearch = victory 1 $ addTrait Part1 $ doubleSided $ story "89017" "Prevent Their Research" MiGoIncursionII
 
 aNobleLegacyPast :: CardDef
 aNobleLegacyPast = doubleSided $ story "87006" "A Noble Legacy (Past)" MachinationsThroughTime

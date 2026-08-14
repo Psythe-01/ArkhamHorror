@@ -54,6 +54,7 @@ import Arkham.ChaosBagStepState
 import Arkham.ChaosToken.Types
 import Arkham.Choose
 import Arkham.ClassSymbol
+import Arkham.Classes.HasQueue (QueueWrapper (..))
 import Arkham.Cost
 import Arkham.Customization
 import Arkham.DamageEffect
@@ -63,7 +64,6 @@ import Arkham.Decklist.Type
 import Arkham.Difficulty
 import Arkham.Direction
 import Arkham.Discard
-import Arkham.Epic.Types (SharedKey)
 import Arkham.Discover
 import Arkham.Draw.Types
 import {-# SOURCE #-} Arkham.Effect.Types
@@ -72,10 +72,8 @@ import Arkham.EffectMetadata
 import Arkham.EncounterCard.Source
 import Arkham.Enemy.Creation
 import {-# SOURCE #-} Arkham.Enemy.Types
+import Arkham.Epic.Types (SharedKey)
 import Arkham.Evade.Types
-import Arkham.Ai.Focus (Focus)
-import Arkham.Ai.Orphans ()
-import Arkham.Ai.State (AiPlayerState)
 import Arkham.Exception
 import Arkham.Exhaust
 import Arkham.Field
@@ -167,7 +165,24 @@ messageType (MovedWithSkillTest _ msg) = messageType msg
 messageType (Do msg) = messageType msg
 messageType (When msg) = messageType msg
 messageType (After msg) = messageType msg
+messageType (Retain msg) = messageType msg
 messageType _ = Nothing
+
+{- | 'Priority' and 'Retain' say /when/ and /how/ a message is delivered; they
+never change what it means, so every queue predicate should see through them.
+
+Deliberately narrow. Every other wrapper /is/ meaningful: ~40 queue predicates
+treat @Do x@ and @x@ as different messages (see
+'Arkham.Enemy.Helpers.cancelEnemyDefeat', 'cancelEndTurn',
+'Arkham.Helpers.Window.replaceWindow'), and unwrapping 'MoveWithSkillTest' is
+load-bearing in 'handleSkillTestNesting'. Widening this silently rewrites the
+semantics of ~150 call sites.
+-}
+instance QueueWrapper Message where
+  stripQueueWrappers (Priority msg) = stripQueueWrappers msg
+  stripQueueWrappers (Retain msg) = stripQueueWrappers msg
+  stripQueueWrappers msg = msg
+
 resolve :: Message -> [Message]
 resolve msg = [When msg, msg, After msg]
 
@@ -485,20 +500,15 @@ data Message
   | SetUltimatumsAndBoonsEnabled Bool
   | -- | Ultimatum of The Scream: ban this ally for the rest of the campaign
     RecordScreamedAlly CardCode
-  | -- | Above-the-table achievement earned; persisted per human player and
-    -- toasted by the API layer (the engine only announces it).
+  | {- | Above-the-table achievement earned; persisted per human player and
+    toasted by the API layer (the engine only announces it).
+    -}
     EarnAchievement Achievement
-  | -- | Checklist items completed toward a cross-playthrough achievement
-    -- (see 'achievementChecklist'); the API layer merges them into the
-    -- per-user progress row and awards the earn when the list is complete.
+  | {- | Checklist items completed toward a cross-playthrough achievement
+    (see 'achievementChecklist'); the API layer merges them into the
+    per-user progress row and awards the earn when the list is complete.
+    -}
     AchievementProgress Achievement [Text]
-  | -- AI seat configuration (mutates Settings.settingsAiPlayers)
-    RegisterAiPlayer PlayerId AiPlayerState
-  | SetAiFocusOverride PlayerId (Maybe Focus)
-  | AddAiPriority PlayerId Target
-  | RemoveAiPriority PlayerId Target
-  | SetAiEnabled PlayerId Bool
-  | SetAiResponseDelay PlayerId Int
   | SetLocationOffset LocationId Double Double
   | ResetLocationOffsets
   | SetAsIfAtIgnored InvestigatorId Bool
@@ -600,21 +610,24 @@ data Message
   | Ask PlayerId (Question Message)
   | WindowAsk [Window] PlayerId (Question Message)
   | AskMap (Map PlayerId (Question Message))
-  | -- | Open a multi-seat barrier: park every seat in the map on its own question
-    -- and hold the @[Message]@ continuation in game state (never in the queue) until
-    -- the join policy is satisfied. Each seat then runs a self-contained sub-flow
-    -- that ends in 'SeatResolved'. With no seats the continuation runs immediately.
-    -- See "Arkham.SimultaneousAsk" and @docs/multi-seat-barrier.md@.
+  | {- | Open a multi-seat barrier: park every seat in the map on its own question
+    and hold the @[Message]@ continuation in game state (never in the queue) until
+    the join policy is satisfied. Each seat then runs a self-contained sub-flow
+    that ends in 'SeatResolved'. With no seats the continuation runs immediately.
+    See "Arkham.SimultaneousAsk" and @docs/multi-seat-barrier.md@.
+    -}
     BeginSimultaneousAsk BatchId JoinPolicy (Map PlayerId (Question Message)) [Message]
-  | -- | One seat's sub-flow has finished. Drops that seat's slot, re-parks the seats
-    -- still waiting, and runs the deferred work + continuation once the join
-    -- condition holds.
+  | {- | One seat's sub-flow has finished. Drops that seat's slot, re-parks the seats
+    still waiting, and runs the deferred work + continuation once the join
+    condition holds.
+    -}
     SeatResolved BatchId PlayerId
-  | -- | Run @msgs@ once this seat's barrier releases, rather than inside its sub-flow.
-    -- For the interactive parts of deck setup, which cannot park inside a sub-flow
-    -- without letting another seat's answer drain this seat's tail (see
-    -- "Arkham.SimultaneousAsk"). With no barrier open for the seat this falls back to
-    -- the pre-barrier behaviour: after a queued 'DoneChoosingDecks', else right now.
+  | {- | Run @msgs@ once this seat's barrier releases, rather than inside its sub-flow.
+    For the interactive parts of deck setup, which cannot park inside a sub-flow
+    without letting another seat's answer drain this seat's tail (see
+    "Arkham.SimultaneousAsk"). With no barrier open for the seat this falls back to
+    the pre-barrier behaviour: after a queued 'DoneChoosingDecks', else right now.
+    -}
     DeferPastSimultaneousAsk PlayerId [Message]
   | After Message
   | EvadeMessage EvadeMessage
@@ -925,9 +938,10 @@ data Message
   | PutOnBottomOfDeck InvestigatorId DeckSignifier Target
   | Record CampaignLogKey
   | RecordForInvestigator InvestigatorId CampaignLogKey
-  | -- | Adjust a per-investigator tally in that investigator's own campaign log
-    -- (e.g. Dark Matter "Memories"). Negative values cross off tallies; the
-    -- count never drops below zero.
+  | {- | Adjust a per-investigator tally in that investigator's own campaign log
+    (e.g. Dark Matter "Memories"). Negative values cross off tallies; the
+    count never drops below zero.
+    -}
     IncrementRecordCountForInvestigator InvestigatorId CampaignLogKey Int
   | RecordCount CampaignLogKey Int
   | IncrementRecordCount CampaignLogKey Int
@@ -1014,6 +1028,7 @@ data Message
   | ShuffleDeck DeckSignifier
   | ShuffleIntoDeck DeckSignifier Target
   | ShuffleCardsIntoTopOfDeck DeckSignifier Int [Card]
+  | ShuffleCardsIntoBottomOfDeck DeckSignifier Int [Card]
   | SpendClues Int [InvestigatorId]
   | SpendResources InvestigatorId Int
   | SpendUses Source Target UseType Int
@@ -1161,6 +1176,13 @@ data Message
   | -- UI
     ClearUI
   | Priority Message
+  | -- | Wraps the 'Ask' / 'AskMap' publishing a question whose seats must survive
+    -- another seat's answer. Every accepted answer pushes 'ClearUI', which wipes
+    -- the whole published question map, and 'Entity.Answer' only re-parks the
+    -- seats it knows are durable. A multi-seat ask that is neither rebuilt by the
+    -- queue nor barriered has to say so, or its other seats are silently dropped
+    -- along with their baked messages (#4787).
+    Retain Message
   | Simultaneously [Message]
   | -- Debug
     ClearQueue
@@ -2665,6 +2687,7 @@ uiToRun = \case
   KeyLabel _ msgs -> Run msgs
   TargetLabel _ msgs -> Run msgs
   GridLabel _ msgs -> Run msgs
+  ConnectionLabel _ msgs -> Run msgs
   TarotLabel _ msgs -> Run msgs
   SkillLabel _ msgs -> Run msgs
   SkillLabelWithLabel _ _ msgs -> Run msgs
@@ -2732,6 +2755,23 @@ chooseOrRunOneAtATimeWithLabel :: Text -> PlayerId -> [UI Message] -> Message
 chooseOrRunOneAtATimeWithLabel _ _ [] = throw $ InvalidState "No messages for chooseOneAtATime"
 chooseOrRunOneAtATimeWithLabel _ _ [x] = uiToRun x
 chooseOrRunOneAtATimeWithLabel lbl pid msgs = Ask pid (QuestionLabel lbl Nothing $ ChooseOneAtATime msgs)
+
+{- | 'chooseOrRunOneAtATimeWithLabel' plus a single "resolve everything still
+listed, in the order shown" choice rendered with @autoLbl@.
+
+Use this instead of recursing inside a 'chooseOneM'/'targets' continuation to build
+the same shortcut: the choice list here is built once and stays flat, whereas the
+recursive form materializes the whole permutation tree into one message.
+
+The auto choice is only offered while more than one option exists — one option runs
+outright, and 'Entity.Answer' drops back to a plain 'ChooseOneAtATime' once the
+re-ask is down to its last one.
+-}
+chooseOrRunOneAtATimeWithAutoLabel :: Text -> Text -> PlayerId -> [UI Message] -> Message
+chooseOrRunOneAtATimeWithAutoLabel _ _ _ [] = throw $ InvalidState "No messages for chooseOneAtATime"
+chooseOrRunOneAtATimeWithAutoLabel _ _ _ [x] = uiToRun x
+chooseOrRunOneAtATimeWithAutoLabel lbl autoLbl pid msgs =
+  Ask pid (QuestionLabel lbl Nothing $ ChooseOneAtATimeWithAuto autoLbl msgs)
 
 chooseSome :: PlayerId -> Text -> [UI Message] -> Message
 chooseSome _ _ [] = throw $ InvalidState "No messages for chooseSome"
@@ -2808,36 +2848,15 @@ continuation, so the state flip is likewise driven by the barrier releasing rath
 than by the queue draining to the right position.
 -}
 chooseDecks :: BatchId -> [PlayerId] -> [Message] -> Message
-chooseDecks batchId pids = chooseDecksWithAi batchId pids []
-
-{- | Like 'chooseDecks' but for AI-assisted games. Each AI seat in @aiSeats@ is
-loaded from its bundled decklist in-place and is NOT prompted; only the
-remaining (human) seats receive a 'ChooseDeck' question.
-
-The ordering invariants this preserves:
-
-  * The @LoadDecklist@s run /after/ 'ChoosingDecks' (which wipes investigators)
-    and /before/ the barrier opens, so the loaded AI investigators survive the
-    wipe and are present the instant the game parks on the human deck prompt.
-  * Only human seats enter the barrier, so it never waits on an AI seat. When
-    every seat is AI the barrier has no seats, its join condition holds on
-    creation, and @continuation@ runs immediately.
-
-With @aiSeats == []@ this is exactly @chooseDecks@, so non-AI games are unaffected.
--}
-chooseDecksWithAi :: BatchId -> [PlayerId] -> [(PlayerId, ArkhamDBDecklist)] -> [Message] -> Message
-chooseDecksWithAi batchId pids aiSeats continuation =
+chooseDecks batchId pids continuation =
   Run
-    $ [SetGameState (IsChooseDecks pids), ChoosingDecks]
-    <> [LoadDecklist pid decklist | (pid, decklist) <- aiSeats]
-    <> [ BeginSimultaneousAsk
-           batchId
-           JoinAll
-           (mapFromList (map (,ChooseDeck) humanPids))
-           (DoneChoosingDecks : continuation)
-       ]
- where
-  aiPids = map fst aiSeats
-  humanPids = filter (`notElem` aiPids) pids
+    [ SetGameState (IsChooseDecks pids)
+    , ChoosingDecks
+    , BeginSimultaneousAsk
+        batchId
+        JoinAll
+        (mapFromList (map (,ChooseDeck) pids))
+        (DoneChoosingDecks : continuation)
+    ]
 
 --

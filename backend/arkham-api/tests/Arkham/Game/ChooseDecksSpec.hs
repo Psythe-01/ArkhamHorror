@@ -1,11 +1,14 @@
 module Arkham.Game.ChooseDecksSpec (spec) where
 
 import Arkham.Asset.Cards qualified as Assets
+import Arkham.Campaign (lookupCampaign)
 import Arkham.Classes.HasGame (getGame)
 import Arkham.Decklist.Type qualified as Decklist
+import Arkham.Difficulty (Difficulty (Easy))
 import Arkham.Game.State
 import Arkham.Investigator.Cards qualified as Investigators
 import Arkham.Matcher qualified as Matcher
+import Arkham.Phase (Phase (InvestigationPhase))
 import Arkham.Projection (field)
 import Arkham.Question
 import Arkham.SimultaneousAsk
@@ -58,6 +61,29 @@ spec = describe "deck selection" do
     pid <- getPlayer (toId self)
     run $ Run [SetGameState (IsChooseDecks [pid]), AskMap (singletonMap pid ChooseDeck)]
     (gameGameState <$> getGame) `shouldReturn` IsChooseDecks [pid]
+
+  -- Regression for #5256. Between scenarios the phase is still whatever the last scenario
+  -- set (StartScenario sets InvestigationPhase and ResetGame drops the scenario from the
+  -- mode without resetting it). Any later request that drains the queue without reaching
+  -- an Ask -- a redundant deck upgrade, in the report -- used to fall into the drain
+  -- branch's investigation-phase resume, which picks a turn player and Asks a PlayerWindow
+  -- over the campaign's parked question. That left the reporter's Dream-Eaters game with no
+  -- scenario and a scenario-only question, which the client renders as a blank screen, and
+  -- every later drain re-created it.
+  it "does not resume the investigation phase between scenarios" . gameTest $ \self -> do
+    pid <- getPlayer (toId self)
+    overTest \g ->
+      g
+        { gameMode = This (lookupCampaign "01" Easy)
+        , gamePhase = InvestigationPhase
+        , gameTurnPlayerInvestigatorId = Nothing
+        }
+    run $ AskMap (singletonMap pid ContinueCampaign)
+    -- A later request drains the queue with the campaign question still parked.
+    tick
+    (fmap stripQuestionWrappers . lookup pid . gameQuestion <$> getGame)
+      `shouldReturn` Just ContinueCampaign
+    (gameTurnPlayerInvestigatorId <$> getGame) `shouldReturn` Nothing
 
   -- Regression for #5173. Two-player Dunwich start where one deck holds In the
   -- Thick of It (PurchaseAnyTrauma 2). That trauma split is an *interactive*
@@ -248,23 +274,6 @@ spec = describe "deck selection" do
       traumaOf other' `shouldReturn` (2, 0)
       (gameGameState <$> getGame) `shouldReturn` IsActive
 
-    -- chooseDecksWithAi is the real entry point. An AI seat is loaded in place and
-    -- never prompted, so it must never become a slot -- a barrier waiting on a seat
-    -- that is never asked would hang the table forever.
-    it "never puts an ai seat in the barrier" $ do
-      bid <- getRandom :: IO BatchId
-      humanPid <- getRandom
-      aiPid <- getRandom
-      barrierSlotsOf (chooseDecksWithAi bid [humanPid, aiPid] [(aiPid, aiDecklist)] [])
-        `shouldBe` Just (singletonMap humanPid ChooseDeck)
-
-    -- With no human seats the barrier is joined on creation, so it never lands in
-    -- state and the continuation runs immediately.
-    it "opens no seats at all when every seat is ai" $ do
-      bid <- getRandom :: IO BatchId
-      aiPid <- getRandom
-      barrierSlotsOf (chooseDecksWithAi bid [aiPid] [(aiPid, aiDecklist)] []) `shouldBe` Just mempty
-
     -- The continuation is durable state rather than a queued message precisely so
     -- it survives a reload mid-deck-selection.
     it "keeps an open barrier across a save/load" . gameTest $ \self -> do
@@ -321,14 +330,9 @@ spec = describe "deck selection" do
     ChooseAmounts {} -> True
     _ -> False
 
-  barrierSlotsOf :: Message -> Maybe (Map PlayerId (Question Message))
-  barrierSlotsOf = \case
-    Run msgs -> listToMaybe [slots | BeginSimultaneousAsk _ _ slots _ <- msgs]
-    _ -> Nothing
-
   inTheThickOfItDecklist :: Decklist.ArkhamDBDecklist
   inTheThickOfItDecklist =
-    aiDecklist
+    rolandDecklist
       { Decklist.slots = singletonMap "08125" 1
       }
 
@@ -339,8 +343,8 @@ spec = describe "deck selection" do
       , Decklist.investigator_name = "Daisy Walker"
       }
 
-  aiDecklist :: Decklist.ArkhamDBDecklist
-  aiDecklist =
+  rolandDecklist :: Decklist.ArkhamDBDecklist
+  rolandDecklist =
     Decklist.ArkhamDBDecklist
       { Decklist.slots = mempty
       , Decklist.sideSlots = mempty

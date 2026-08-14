@@ -57,7 +57,6 @@ import Arkham.Prelude
 import Arkham.Projection
 import Arkham.Source
 import Arkham.Target
-import Arkham.Tracing
 import Arkham.Trait (Trait (Ally))
 import Arkham.UltimatumsAndBoons.Types
 import Arkham.Window (mkAfter, revealedChaosTokens)
@@ -222,7 +221,7 @@ screamedAllyCleanupMessages iids = do
 @RunMessage@ catch-all (mirroring how tarot ability uses are dispatched).
 -}
 runUltimatumsAndBoonsMessage
-  :: (HasGame m, HasQueue Message m, Tracing m, CardGen m)
+  :: (HasGame m, HasQueue Message m, CardGen m)
   => Message
   -> m ()
 runUltimatumsAndBoonsMessage msg = case msg of
@@ -385,7 +384,7 @@ the card database), so the choices are independent per player.
 one message shape covers both @InitDeck@ call sites.
 -}
 morriganWeaknessMessages
-  :: (HasGame m, MonadRandom m, Tracing m)
+  :: (HasGame m, MonadRandom m)
   => InvestigatorId
   -> m Card
   -> m [Message]
@@ -402,11 +401,16 @@ morriganWeaknessMessages iid drawWeakness = do
  where
   -- The basic weakness pool is far larger than 3; the fuel only guards
   -- against a pathological sampler.
+  --
+  -- Distinctness is by canonical card code, not 'CardDef' equality: two draws can be
+  -- different printings of the same weakness (Mob Enforcer is 01101 in Core and 01601 in
+  -- Revised Core), and those 'CardDef's are not equal, so the player would be offered the
+  -- same card twice (#5264).
   distinctWeaknesses _ (0 :: Int) acc = pure (reverse acc)
   distinctWeaknesses 0 _ acc = pure (reverse acc)
   distinctWeaknesses fuel n acc = do
     card <- drawWeakness
-    if toCardDef card `elem` map toCardDef acc
+    if canonicalCardCode (toCardDef card) `elem` map (canonicalCardCode . toCardDef) acc
       then distinctWeaknesses (fuel - 1) n acc
       else distinctWeaknesses (fuel - 1) (n - 1) (card : acc)
 

@@ -5,16 +5,15 @@ import { BugAntIcon } from '@heroicons/vue/20/solid'
 import { useI18n } from 'vue-i18n'
 import { handleEmbeddedI18n } from '@/arkham/i18n'
 import { useDebug } from '@/arkham/debug'
-import { useAi } from '@/arkham/ai'
 import { Game } from '@/arkham/types/Game'
 import { keyToId } from '@/arkham/types/Key'
 import { TokenType } from '@/arkham/types/Token'
 import { imgsrc } from '@/arkham/helpers'
 import { cardArt, cardImage, sourceCardCode } from '@/arkham/cardImages'
 import { useGameChoices, useStickyChoicesSource, useGameChoicesTooltip } from '@/arkham/composables/useGameChoices'
+import { useCardFlip } from '@/arkham/composables/useCardFlip'
 import { AbilityLabel, AbilityMessage, Message, MessageType } from '@/arkham/types/Message'
 import AbilitiesMenu from '@/arkham/components/AbilitiesMenu.vue'
-import AiTargetMenu from '@/arkham/components/AiTargetMenu.vue'
 import DebugEnemy from '@/arkham/components/debug/Enemy.vue'
 import PoolItem from '@/arkham/components/PoolItem.vue'
 import TokenPool from '@/arkham/components/TokenPool.vue'
@@ -30,6 +29,7 @@ import * as Arkham from '@/arkham/types/Enemy'
 import { Source } from '@/arkham/types/Source'
 import { isManifestedSpiritEnemy } from '@/arkham/spiritVisuals';
 import { type Card as ArkhamCard, toCardContents } from '@/arkham/types/Card';
+import { isUnvaluedCalculation } from '@/arkham/types/Calculation'
 
 const props = withDefaults(defineProps<{
   game: Game
@@ -37,7 +37,8 @@ const props = withDefaults(defineProps<{
   playerId: string
   atLocation?: boolean
   attached?: boolean
-}>(), { atLocation: false, attached: false })
+  sourceHighlighted?: boolean
+}>(), { atLocation: false, attached: false, sourceHighlighted: false })
 
 const emits = defineEmits<{
   choose: [value: number]
@@ -61,10 +62,23 @@ const imageId = computed(() => cardArt(props.enemy.cardCode, props.enemy.flipped
 
 const image = computed(() => cardImage(props.enemy.cardCode, props.enemy.flipped ? 'b' : ''))
 
+// A story placed on an enemy is its other side (e.g. the Squamous Parasite's
+// glyph back), so turn it over on the enemy's own <img> rather than swapping
+// components outright. The Story component only takes over once the flip has
+// landed, by which point it is already showing the same art.
+const storyImage = computed(() => {
+  const story = enemyStory.value
+  if (!story) return null
+  return cardImage(story.flipped ? story.flippedArt : story.art)
+})
+const faceImage = computed(() => storyImage.value ?? image.value)
+const { displayedImage, flipping } = useCardFlip(faceImage)
+
 const id = computed(() => props.enemy.id)
 
 const choicesSource = useStickyChoicesSource(() => props.game, () => props.playerId)
 const isHighlighted = computed(() => {
+  if (props.sourceHighlighted) return true
   const source = choicesSource.value
   return source !== null && 'contents' in source && source.contents === props.enemy.id
 })
@@ -245,6 +259,13 @@ const cannotBeDamagedModifier = computed(() => {
 
 const isCannotBeDamaged = computed(() => cannotBeDamagedModifier.value !== null)
 
+/* An enemy that cannot be damaged, or that has no health at all (Cthulhu (Ancient
+ * Evil) prints a dash), has no damage pool worth showing. Still show it if damage
+ * has somehow landed, so nothing is ever silently hidden. */
+const showDamage = computed(() =>
+  enemyDamage.value > 0 || (!isCannotBeDamaged.value && !isUnvaluedCalculation(props.enemy.health))
+)
+
 const cannotBeDamagedCardCode = computed<string | null>(() => {
   const m = cannotBeDamagedModifier.value
   if (!m) return null
@@ -289,17 +310,9 @@ const addedKeywords = computed(() => {
 
 const choose = (index: number) => emits('choose', index)
 
-const ai = useAi()
-const aiMenuOpen = ref(false)
-const aiTarget = computed(() => ({ tag: 'EnemyTarget', contents: id.value }))
-
 const showAbilities = ref<boolean>(false)
 
 async function clicked() {
-  if (ai.targeting) {
-    aiMenuOpen.value = true
-    return
-  }
   if(cardAction.value !== -1) {
     emits('choose', cardAction.value)
     showAbilities.value = false
@@ -349,7 +362,7 @@ function onDrop(event: DragEvent) {
 <template>
   <div class="enemy--outer" :class="{showAbilities, oversized}">
     <div class="enemy">
-      <Story v-if="enemyStory" :story="enemyStory" :game="game" :playerId="playerId" @choose="choose"/>
+      <Story v-if="enemyStory && !flipping" :story="enemyStory" :game="game" :playerId="playerId" @choose="choose"/>
       <template v-else>
         <div class="card-frame" ref="frame">
           <div
@@ -364,10 +377,10 @@ function onDrop(event: DragEvent) {
             <span v-if="isCannotBeDamaged" class="cannot-be-damaged-badge" :data-image-id="cannotBeDamagedCardCode">
               <font-awesome-icon icon="shield-heart" />
             </span>
-            <img v-if="isTrueForm" :src="image"
+            <img v-if="isTrueForm" :src="displayedImage"
               class="card enemy"
               v-tooltip="sourceTooltip"
-              :class="{ dragging, 'enemy--can-interact': canInteract && !hasObjective, 'enemy--can-interact-cursor': canInteract, attached, 'source-highlight': isHighlighted || isAttacking, 'ai-target-hover': ai.targeting }"
+              :class="{ dragging, 'enemy--can-interact': canInteract && !hasObjective, 'enemy--can-interact-cursor': canInteract, attached, 'source-highlight': isHighlighted || isAttacking, 'card--flipping': flipping }"
               :data-id="id"
               :data-card-code="enemy.cardCode"
               :data-game-id="game.id"
@@ -386,10 +399,10 @@ function onDrop(event: DragEvent) {
             <img v-else
               :draggable="debug.active"
               @dragstart="startDrag($event, enemy)"
-              :src="isSwarm ? imgsrc('backs/back_player.jpg') : image"
+              :src="isSwarm ? imgsrc('backs/back_player.jpg') : displayedImage"
               class="card enemy"
               v-tooltip="sourceTooltip"
-              :class="{ 'enemy--can-interact': canInteract && !hasObjective, 'enemy--can-interact-cursor': canInteract, attached, 'source-highlight': isHighlighted || isAttacking, 'ai-target-hover': ai.targeting }"
+              :class="{ 'enemy--can-interact': canInteract && !hasObjective, 'enemy--can-interact-cursor': canInteract, attached, 'source-highlight': isHighlighted || isAttacking, 'card--flipping': flipping }"
               :data-id="id"
               :data-card-code="enemy.cardCode"
               :data-game-id="game.id"
@@ -408,7 +421,7 @@ function onDrop(event: DragEvent) {
             <div class="keys" v-if="keys.length > 0">
               <KeyToken v-for="k in keys" :key="keyToId(k)" :keyToken="k" :game="game" :playerId="playerId" @choose="choose" />
             </div>
-            <PoolItem v-if="!omnipotent && !attached" type="health" :amount="enemyDamage" />
+            <PoolItem v-if="!omnipotent && !attached && showDamage" type="health" :amount="enemyDamage" />
             <TokenPool :tokens="enemyTokens" />
             <PoolItem v-if="enemy.cardsUnderneath.length > 0" type="card" :amount="enemy.cardsUnderneath.length" />
             <Token
@@ -431,19 +444,22 @@ function onDrop(event: DragEvent) {
             :host-has-swarm="swarmEnemies.length > 0"
             @choose="chooseAbility"
             />
-
-          <AiTargetMenu
-            v-model="aiMenuOpen"
-            :frame="frame"
-            kind="enemy"
-            :target="aiTarget"
-            :seat="ai.selectedSeat"
-            :game-id="game.id"
-            :position="atLocation ? 'right' : (inVoid || global) ? 'left' : 'top'"
-            />
         </div>
 
       </template>
+      <!-- Keys come first: they are pulled up over whatever precedes them (see
+           the negative margin below), so they must overlap the enemy card
+           itself rather than hiding an attached treachery/asset/event. -->
+      <ScarletKey
+        v-for="(skId, idx) in enemy.scarletKeys"
+        :scarletKey="game.scarletKeys[skId]"
+        :game="game"
+        :playerId="playerId"
+        :key="skId"
+        @choose="choose"
+        :attached="true"
+        :style="{ 'z-index': enemy.scarletKeys.length - idx }"
+      />
       <img v-for="card in referenceCards" :src="cardImage(card)" :key="card" class="attached card" />
       <Treachery
         v-for="treacheryId in enemy.treacheries"
@@ -481,16 +497,6 @@ function onDrop(event: DragEvent) {
         :playerId="playerId"
         :attached="true"
         @choose="$emit('choose', $event)"
-      />
-      <ScarletKey
-        v-for="(skId, idx) in enemy.scarletKeys"
-        :scarletKey="game.scarletKeys[skId]"
-        :game="game"
-        :playerId="playerId"
-        :key="skId"
-        @choose="choose"
-        :attached="true"
-        :style="{ 'z-index': enemy.scarletKeys.length - idx }"
       />
       <Story
         v-for="storyId in enemy.stories"
@@ -588,20 +594,6 @@ function onDrop(event: DragEvent) {
   border: 2px solid var(--select);
   border-radius: 5px;
   cursor: pointer;
-}
-
-/* Dev-only "AI targeting mode": class is only bound while targeting is on, so
-   normal play is untouched. Green border + pale green wash on hover. */
-.ai-target-hover {
-  cursor: pointer;
-  transition: box-shadow 120ms ease, filter 120ms ease;
-}
-
-.ai-target-hover:hover {
-  border: 2px solid var(--ai-target);
-  border-radius: 5px;
-  box-shadow: 0 0 0 2px var(--ai-target), 0 0 12px 3px rgba(74, 222, 128, 0.55);
-  filter: brightness(1.05) sepia(0.35) hue-rotate(55deg) saturate(1.3);
 }
 
 .enemy--can-interact-cursor {

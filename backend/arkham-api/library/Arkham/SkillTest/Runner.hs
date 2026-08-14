@@ -14,8 +14,8 @@ import Arkham.ChaosToken.Types
 import Arkham.Classes hiding (matches)
 import Arkham.Classes.HasGame
 import Arkham.Deck qualified as Deck
-import Arkham.Helpers.ChaosToken (getModifiedChaosTokenFaces)
 import Arkham.Game.Utils (maybeLocation)
+import Arkham.Helpers.ChaosToken (getModifiedChaosTokenFaces)
 import Arkham.Helpers.Cost (getCanAffordCost)
 import Arkham.Helpers.Enemy (ignoredKeywordWindowsForEnemy)
 import Arkham.Helpers.Message
@@ -37,26 +37,26 @@ import Arkham.SkillType
 import Arkham.Source
 import Arkham.Target
 import Arkham.Timing qualified as Timing
-import Arkham.Tracing
 import Arkham.Window (Window (..), mkAfter, mkWhen, mkWindow)
 import Arkham.Window qualified as Window
 import Control.Lens (each)
 import Data.Map.Strict qualified as Map
 
-locationTargetToMaybeCard :: (HasCallStack, HasGame m, Tracing m) => LocationId -> m (Maybe Card)
+locationTargetToMaybeCard :: (HasCallStack, HasGame m) => LocationId -> m (Maybe Card)
 locationTargetToMaybeCard lid = do
   mCard <- targetToMaybeCard (LocationTarget lid)
   case mCard of
     Just card -> pure $ Just card
     Nothing -> fmap toCard <$> maybeLocation lid
 
-skillTestTargetToMaybeCard :: (HasCallStack, HasGame m, Tracing m) => Target -> m (Maybe Card)
+skillTestTargetToMaybeCard :: (HasCallStack, HasGame m) => Target -> m (Maybe Card)
 skillTestTargetToMaybeCard = \case
   LocationTarget lid -> locationTargetToMaybeCard lid
   ProxyTarget t _ -> skillTestTargetToMaybeCard t
   t -> targetToMaybeCard t
 
-skillTestSourceToMaybeCard :: (HasCallStack, HasGame m, Tracing m, Sourceable source) => source -> m (Maybe Card)
+skillTestSourceToMaybeCard
+  :: (HasCallStack, HasGame m, Sourceable source) => source -> m (Maybe Card)
 skillTestSourceToMaybeCard (toSource -> source) = case source of
   LocationSource lid -> locationTargetToMaybeCard lid
   AbilitySource src _ -> skillTestSourceToMaybeCard src
@@ -66,7 +66,7 @@ skillTestSourceToMaybeCard (toSource -> source) = case source of
   PaymentSource inner -> skillTestSourceToMaybeCard inner
   s -> sourceToMaybeCard s
 
-totalModifiedSkillValue :: (HasGame m, Tracing m) => SkillTest -> m Int
+totalModifiedSkillValue :: HasGame m => SkillTest -> m Int
 totalModifiedSkillValue s = do
   results <- calculateSkillTestResultsData s
   chaosTokenValues <- totalChaosTokenValues s
@@ -108,7 +108,10 @@ instance RunMessage SkillTest where
       pure s
     IncreaseSkillTestDifficulty n -> do
       -- see: faqs/drawing-thin
-      pure $ s & difficultyL %~ \(SkillTestDifficulty d) -> SkillTestDifficulty (SumCalculation [d, Fixed n])
+      -- This alters the test's *inherent* difficulty, so it must also apply to
+      -- the original difficulty a RepeatSkillTest (Live and Learn) restores.
+      let increase (SkillTestDifficulty d) = SkillTestDifficulty (SumCalculation [d, Fixed n])
+      pure $ s & difficultyL %~ increase & originalDifficultyL %~ fmap increase
     ChaosTokenCanceled _ _ token -> do
       let cancelIf t = if t.id == token.id then token {chaosTokenCancelled = True} else t
       pure
@@ -137,7 +140,12 @@ instance RunMessage SkillTest where
       -- the test-scoped ignore modifier is visible.
       ignoreWindows <- case (skillTestAction, skillTestTarget.enemy) of
         (Just Action.Fight, Just eid) ->
-          ignoredKeywordWindowsForEnemy skillTestSource skillTestInvestigator eid Keyword.Retaliate IgnoreRetaliate
+          ignoredKeywordWindowsForEnemy
+            skillTestSource
+            skillTestInvestigator
+            eid
+            Keyword.Retaliate
+            IgnoreRetaliate
         (Just Action.Evade, Just eid) ->
           ignoredKeywordWindowsForEnemy skillTestSource skillTestInvestigator eid Keyword.Alert IgnoreAlert
         _ -> pure []
@@ -693,7 +701,11 @@ instance RunMessage SkillTest where
               other -> other
             _ -> id
 
-      discardMessages <- forMaybeM discards $ \(iid, discard) -> do
+      discardMessages <- forMaybeM discards $ \(committer, discard) -> do
+        -- A committed card returns to its *owner*, not to whoever committed it. These
+        -- differ when an effect lets you commit another investigator's card (e.g. Guided
+        -- by the Unseen (3), which digs into the performing investigator's deck).
+        let iid = fromMaybe committer discard.owner
         mods <- map resultF <$> getModifiers (toCardId discard)
         let mDevourer = listToMaybe [iid' | SetAfterPlay (DevourThis iid') <- mods]
         pure
@@ -703,9 +715,8 @@ instance RunMessage SkillTest where
             | PlaceOnBottomOfDeckInsteadOfDiscard `elem` mods ->
                 Just (PutCardOnBottomOfDeck iid (Deck.InvestigatorDeck iid) (toCard discard))
             | ReturnToHandAfterTest `elem` mods -> Just $ AddToHand iid [toCard discard]
-            | ShuffleIntoDeckInsteadOfDiscard `elem` mods
-            , Just owner <- discard.owner ->
-                Just $ ShuffleCardsIntoDeck (Deck.InvestigatorDeck owner) [toCard discard]
+            | ShuffleIntoDeckInsteadOfDiscard `elem` mods ->
+                Just $ ShuffleCardsIntoDeck (Deck.InvestigatorDeck iid) [toCard discard]
             | otherwise -> guard (LeaveCardWhereItIs `notElem` mods) $> AddToDiscard iid discard
 
       modifiers' <- getModifiers (toTarget s)
@@ -888,11 +899,19 @@ instance RunMessage SkillTest where
           let passed target =
                 Priority
                   $ PassedSkillTest skillTestInvestigator skillTestAction skillTestSource target skillTestType n
+          -- ST.7: every result registers itself as an option (chaos token
+          -- effects, committed card riders, and the initiator's own consequence
+          -- via 'OriginalOptionKind'), then we collect. One result resolves
+          -- straight away; several let the investigator pick the order.
+          --
+          -- The collect must come last so initiators still get to register --
+          -- see the Fight/Evade handlers in "Arkham.Enemy.Runner". Mirrors the
+          -- failure branch below.
           pushAll
             $ cycleN
               successTimes
               ( [passed target | target <- skillTestSubscribers <> tokenSubscribers]
-                  <> [passed (SkillTestInitiatorTarget skillTestTarget)]
+                  <> [passed (SkillTestInitiatorTarget skillTestTarget), CollectSkillTestOptions]
               )
         FailedBy _ n -> do
           investigatorsToResolveFailure <-

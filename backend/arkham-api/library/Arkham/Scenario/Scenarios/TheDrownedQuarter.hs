@@ -3,7 +3,6 @@ module Arkham.Scenario.Scenarios.TheDrownedQuarter (theDrownedQuarter) where
 import Arkham.Act.Cards qualified as Acts
 import Arkham.Agenda.Cards qualified as Agendas
 import Arkham.Asset.Cards qualified as Assets
-import Arkham.Campaign.Import.Lifted (setNextCampaignStep)
 import Arkham.Campaigns.TheDrownedCity.CampaignSteps (pattern TheApiary, pattern TheWesternWall)
 import Arkham.Campaigns.TheDrownedCity.Import
 import Arkham.Campaigns.TheDrownedCity.Key qualified as Key
@@ -75,6 +74,7 @@ instance RunMessage TheDrownedQuarter where
       for_ withNoPlaceLikeHome \iid -> do
         hasPhysical <- fieldP InvestigatorPhysicalTrauma (> 0) iid
         hasMental <- fieldP InvestigatorMentalTrauma (> 0) iid
+        canErase <- canEraseProgress iid Key.NoPlaceLikeHome
         storyWithChooseOneM'
           ( compose.green do
               h3 "noPlaceLikeHome.title"
@@ -87,7 +87,7 @@ instance RunMessage TheDrownedQuarter where
                 li "noPlaceLikeHome.onMyOwn"
           )
           do
-            labeled' "noPlaceLikeHome.trustHim" do
+            labeledValidate' canErase "noPlaceLikeHome.trustHim" do
               -- "Heal 1 mental or 1 physical trauma"; only offer what they have.
               when (hasPhysical || hasMental) do
                 chooseOneM iid do
@@ -100,12 +100,15 @@ instance RunMessage TheDrownedQuarter where
                     $ labeled' "noPlaceLikeHome.healMentalTrauma"
                     $ push
                     $ HealTrauma iid 0 1
-              decrementRecordCount Key.NoPlaceLikeHome 1
+              decrementRecordCountForInvestigator iid Key.NoPlaceLikeHome 1
             labeled' "noPlaceLikeHome.onMyOwn" do
-              incrementRecordCount Key.NoPlaceLikeHome 2
+              incrementRecordCountForInvestigator iid Key.NoPlaceLikeHome 2
               sufferMentalTrauma iid 1
-              for_ investigators \iid' ->
-                nextSetupModifier attrs.id attrs iid' (StartingHand (-2))
+              -- "The next scenario" is this one: the story is read in the intro,
+              -- before setup, so the next scenario to begin is the one about to be
+              -- set up. nextSetupModifier is inert while its own scenario is
+              -- current and would silently do nothing here.
+              for_ investigators \iid' -> setupModifier attrs iid' (StartingHand (-2))
       pure s
     StandaloneSetup -> do
       setChaosTokens (chaosBagContents attrs.difficulty)
@@ -191,8 +194,7 @@ instance RunMessage TheDrownedQuarter where
 
       eachInvestigator (`forInvestigator` Setup)
     ForInvestigator iid Setup -> do
-      -- Each Artifact is unique, so one already taken this setup is off the table.
-      artifacts <- filterM (fmap not . selectAny . assetIs) =<< getEarnedArtifacts
+      artifacts <- getAvailableArtifacts
       chooseOneM iid do
         questionLabeled' "chooseExpeditionAssetQuestion"
         labeled' "noExpeditionAsset" nothing
@@ -227,7 +229,8 @@ instance RunMessage TheDrownedQuarter where
           for_ investigators \iid -> do
             investigatorTasks <- getInvestigatorTasks iid
             for_ investigatorTasks \(key, _, _) ->
-              whenM ((> 0) <$> getRecordCount key) $ decrementRecordCount key 1
+              whenM ((> 0) <$> getRecordCountForInvestigator iid key)
+                $ decrementRecordCountForInvestigator iid key 1
           push R3
         Resolution 1 -> do
           resolution "resolution1"
@@ -242,12 +245,12 @@ instance RunMessage TheDrownedQuarter where
           -- only place the power is recorded as diverted.
           powerWasDiverted <- getHasRecord ThePowerWasDiverted
           resolutionWithXp "resolution3"
-            $ allGainXpWithBonus' attrs
-            $ toBonus "bonus" (if powerWasDiverted then 2 else 0)
-          recordSetInsert RlyehMap [String "The Drowned Quarter"]
+            $ if powerWasDiverted
+              then allGainXpWithBonus' attrs $ toBonus "bonus" 2
+              else allGainXp' attrs
+          crossOutRecordSetEntries RlyehMap [toJSON RlyehDrownedQuarter]
           headedWest <- getHasRecord TheExpeditionHeadedWest
-          if headedWest then setNextCampaignStep TheApiary else setNextCampaignStep TheWesternWall
-          endOfScenario
+          endOfScenarioThen $ if headedWest then TheApiary else TheWesternWall
         _ -> error $ "Unknown resolution: " <> show res
       pure s
     _ -> TheDrownedQuarter <$> liftRunMessage msg attrs

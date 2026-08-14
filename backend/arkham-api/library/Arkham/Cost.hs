@@ -109,9 +109,18 @@ data Cost
   | GroupDiscardCost GameValue ExtendedCardMatcher LocationMatcher
   | GroupSkillIconCost Int (Set SkillIcon) LocationMatcher
   | GroupClueCost GameValue LocationMatcher
+  | -- | A group clue cost whose size is computed (e.g. reduced by campaign-log entries)
+    CalculatedGroupClueCost GameCalculation LocationMatcher
   | SameLocationGroupClueCost GameValue LocationMatcher
   | GroupClueCostRange (Int, Int) LocationMatcher
   | PlaceClueOnLocationCost GameValue
+  | {- | As 'PlaceClueOnLocationCost', but the clues come from (and are placed at
+    the location of) the matched investigator rather than the one paying.
+    Write 'ThatInvestigator' to charge the investigator in the window that
+    triggered the ability (e.g. "when an investigator at your location would
+    discover clues, place 1 of their clues on that location instead").
+    -}
+    InvestigatorPlaceClueOnLocationCost InvestigatorMatcher GameValue
   | ExhaustCost Target
   | ShuffleTopOfScenarioDeckIntoYourDeck Int ScenarioDeckKey
   | ChooseEnemyCost EnemyMatcher
@@ -176,6 +185,7 @@ data Cost
   | CostWhenTreacheryElse TreacheryMatcher Cost Cost
   | CostOnlyWhen Criterion Cost
   | CostIfEnemy EnemyMatcher Cost Cost
+  | CostIfLocation LocationMatcher Cost Cost
   | CostIfCustomization Customization Cost Cost
   | CostIfRemembered ScenarioLogKey Cost Cost
   | UpTo GameCalculation Cost
@@ -202,6 +212,14 @@ data Cost
   | AsIfAtLocationCost LocationId Cost
   | NonBlankedCost Cost
   | DrawEncounterCardsCost Int
+  | {- | Discard from the top of the encounter deck until a matching card is
+    discarded, then draw it (Dark Matter's All-Seeing Eye taxes each scan).
+    The 'Source' is what the resulting 'RequestedEncounterCard' is addressed to:
+    additional costs are contributed by a card other than the one performing the
+    action, so the active cost's own source would route the answer to the wrong
+    card.
+    -}
+    DiscardEncounterUntilFirstCost Source ExtendedCardMatcher
   | GloriaCost -- lol, not going to attempt to make this generic
   | ArchiveOfConduitsUnidentifiedCost -- this either
   | LabeledCost Text Cost
@@ -334,6 +352,11 @@ instance FromJSON Cost where
 
 totalActionCost :: Cost -> Int
 totalActionCost = sumOf (cosmos . _ActionCost)
+
+totalActionPayment :: Payment -> Int
+totalActionPayment payment =
+  sumOf (cosmos . _ActionPayment) payment
+    + length (toListOf (cosmos . _AdditionalActionPayment) payment)
 
 totalResourcePayment :: Payment -> Int
 totalResourcePayment = sumOf (cosmos . _ResourcePayment)

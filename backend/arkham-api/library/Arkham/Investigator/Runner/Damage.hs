@@ -1,9 +1,8 @@
-{-# OPTIONS_GHC -Wno-unused-record-wildcards -Wno-unused-imports -Wno-unused-matches -Wno-missing-signatures -Wno-orphans #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unused-record-wildcards -Wno-unused-imports -Wno-unused-matches -Wno-missing-signatures -Wno-orphans #-}
 
 module Arkham.Investigator.Runner.Damage where
-
 
 import Arkham.Ability as X hiding (PaidCost)
 import Arkham.ChaosToken as X
@@ -58,7 +57,6 @@ import Arkham.Event.Types (Field (..))
 import Arkham.Fight.Types
 import {-# SOURCE #-} Arkham.Game (asIfTurn, withoutCanModifiers)
 import Arkham.Game.Settings (activeUltimatumsAndBoons, settingsStrictAsIfAt)
-import Arkham.UltimatumsAndBoons.Types (Ultimatum (..), UltimatumOrBoon (..))
 import {-# SOURCE #-} Arkham.GameEnv
 import Arkham.Helpers
 import Arkham.Helpers.Ability (
@@ -128,7 +126,6 @@ import Arkham.Key
 import Arkham.Keyword (Keyword (Starting))
 import Arkham.Location.Types (Field (..))
 import Arkham.Matcher (
-  basic,
   AssetMatcher (..),
   CardMatcher (..),
   EnemyMatcher (..),
@@ -144,6 +141,7 @@ import Arkham.Matcher (
   assetControlledBy,
   assetIs,
   at_,
+  basic,
   cardIs,
   colocatedWith,
   enemyEngagedWith,
@@ -178,9 +176,9 @@ import Arkham.Slot
 import Arkham.Timing qualified as Timing
 import Arkham.Token
 import Arkham.Token qualified as Token
-import Arkham.Tracing
 import Arkham.Treachery.Cards qualified as Treacheries
 import Arkham.Treachery.Types (Field (..))
+import Arkham.UltimatumsAndBoons.Types (Ultimatum (..), UltimatumOrBoon (..))
 import Arkham.Window (Window (..), defaultWindows, mkAfter, mkWhen, mkWindow, primaryWindowTarget)
 import Arkham.Window qualified as Window
 import Arkham.Zone qualified as Zone
@@ -193,26 +191,27 @@ import Data.Monoid
 import Data.Set qualified as Set
 import Data.UUID (nil)
 
-
 removeInvestigatorTokens :: Monad m => Token -> Int -> InvestigatorAttrs -> m InvestigatorAttrs
 removeInvestigatorTokens token n a = case token of
-  Damage | a.assignedHealthDamage > 0 ->
-    let subtractFromAssigned = min a.assignedHealthDamage n
-        subtractFromPool = max 0 (n - subtractFromAssigned)
-     in pure
-          $ a
-          & (tokensL %~ subtractTokens token subtractFromPool)
-          & (assignedHealthDamageL -~ subtractFromAssigned)
-  Horror | a.assignedSanityDamage > 0 ->
-    let subtractFromAssigned = min a.assignedSanityDamage n
-        subtractFromPool = max 0 (n - subtractFromAssigned)
-     in pure
-          $ a
-          & (tokensL %~ subtractTokens token subtractFromPool)
-          & (assignedSanityDamageL -~ subtractFromAssigned)
+  Damage
+    | a.assignedHealthDamage > 0 ->
+        let subtractFromAssigned = min a.assignedHealthDamage n
+            subtractFromPool = max 0 (n - subtractFromAssigned)
+         in pure
+              $ a
+              & (tokensL %~ subtractTokens token subtractFromPool)
+              & (assignedHealthDamageL -~ subtractFromAssigned)
+  Horror
+    | a.assignedSanityDamage > 0 ->
+        let subtractFromAssigned = min a.assignedSanityDamage n
+            subtractFromPool = max 0 (n - subtractFromAssigned)
+         in pure
+              $ a
+              & (tokensL %~ subtractTokens token subtractFromPool)
+              & (assignedSanityDamageL -~ subtractFromAssigned)
   _ -> pure $ a & tokensL %~ subtractTokens token n
 
-handleInvestigatorIsDefeated a@InvestigatorAttrs{..} source iid = do
+handleInvestigatorIsDefeated a@InvestigatorAttrs {..} source iid = do
   isLead <- (== iid) <$> getLead
   modifiedHealth <- field InvestigatorHealth (toId a)
   modifiedSanity <- field InvestigatorSanity (toId a)
@@ -256,7 +255,7 @@ handleInvestigatorIsDefeated a@InvestigatorAttrs{..} source iid = do
           & (physicalTraumaL +~ physicalTrauma)
           & (mentalTraumaL +~ mentalTrauma)
 
-handleInvestigatorEliminated a@InvestigatorAttrs{..} iid = do
+handleInvestigatorEliminated a@InvestigatorAttrs {..} iid = do
   withLocationOf iid \lid -> do
     includeStory <- not <$> hasCampaignOption PlayersDoNotControlStoryAssetClues
     let storyWrapper = if includeStory then id else (<> AssetNonStory)
@@ -297,16 +296,16 @@ handleInvestigatorEliminated a@InvestigatorAttrs{..} iid = do
     & (eliminatedL .~ True)
     & (placementL .~ Unplaced)
 
-handlePlaceAdditionalDamage a@InvestigatorAttrs{..} target source damage horror = do
+handlePlaceAdditionalDamage a@InvestigatorAttrs {..} target source damage horror = do
   push $ Msg.InvestigatorDamage (toId a) source damage horror
   pure a
 
-handleInvestigatorDamageInvestigator a@InvestigatorAttrs{..} iid xid = do
+handleInvestigatorDamageInvestigator a@InvestigatorAttrs {..} iid xid = do
   damage <- damageValueFor 1 iid DamageForInvestigator
   push $ InvestigatorAssignDamage xid (InvestigatorSource iid) DamageAny damage 0
   pure a
 
-handleInvestigatorDamageEnemy a@InvestigatorAttrs{..} iid eid source = do
+handleInvestigatorDamageEnemy a@InvestigatorAttrs {..} iid eid source = do
   cannotDamage <- hasModifier iid CannotDealDamage
   unless cannotDamage $ do
     damage <- damageValueFor 1 iid DamageForEnemy
@@ -323,7 +322,7 @@ handleInvestigatorDamageEnemy a@InvestigatorAttrs{..} iid eid source = do
     push $ Msg.DealDamage (EnemyTarget eid) $ attack source' damage
   pure a
 
-handleCancelDamage a@InvestigatorAttrs{..} iid n = lift do
+handleCancelDamage a@InvestigatorAttrs {..} iid n = lift do
   withQueue_ \queue -> flip map queue $ \case
     Msg.InvestigatorDamage iid' s damage' horror' ->
       Msg.InvestigatorDamage iid' s (max 0 (damage' - n)) horror'
@@ -332,7 +331,7 @@ handleCancelDamage a@InvestigatorAttrs{..} iid n = lift do
     other -> other
   pure a
 
-handleCancelHorror a@InvestigatorAttrs{..} iid n = lift do
+handleCancelHorror a@InvestigatorAttrs {..} iid n = lift do
   withQueue_ \queue -> flip map queue $ \case
     Msg.InvestigatorDamage iid' s damage' horror' ->
       Msg.InvestigatorDamage iid' s damage' (max 0 (horror' - n))
@@ -341,7 +340,7 @@ handleCancelHorror a@InvestigatorAttrs{..} iid n = lift do
     other -> other
   pure a
 
-handleInvestigatorDirectDamage a@InvestigatorAttrs{..} iid source damage horror = do
+handleInvestigatorDirectDamage a@InvestigatorAttrs {..} iid source damage horror = do
   unless (investigatorDefeated || investigatorResigned) do
     mods <- getModifiers a
     -- CannotBeDamaged blocks damage only; horror still applies.
@@ -370,7 +369,7 @@ handleInvestigatorDirectDamage a@InvestigatorAttrs{..} iid source damage horror 
          ]
   pure a
 
-handleInvestigatorAssignDamage a@InvestigatorAttrs{..} iid source strategy damage horror = do
+handleInvestigatorAssignDamage a@InvestigatorAttrs {..} iid source strategy damage horror = do
   unless (investigatorDefeated || investigatorResigned) do
     mods <- getModifiers a
     -- CannotBeDamaged blocks damage only; horror still applies.
@@ -393,7 +392,7 @@ handleInvestigatorAssignDamage a@InvestigatorAttrs{..} iid source strategy damag
           <> [InvestigatorDoAssignDamage iid source strategy AnyAsset damage' horror' [] []]
   pure a
 
-finalizeDeferredDamageAssignment a@InvestigatorAttrs{..} iid source damageStrategy damageTargets horrorTargets = do
+finalizeDeferredDamageAssignment a@InvestigatorAttrs {..} iid source damageStrategy damageTargets horrorTargets = do
   let
     assetDamageMap = Map.fromListWith (+) [(aid, 1 :: Int) | AssetTarget aid <- damageTargets]
     assetHorrorMap = Map.fromListWith (+) [(aid, 1 :: Int) | AssetTarget aid <- horrorTargets]
@@ -429,43 +428,49 @@ finalizeDeferredDamageAssignment a@InvestigatorAttrs{..} iid source damageStrate
     do
       push $ InvestigatorDirectDamage iid source 1 0
 
-  let totalDamage = length damageTargets
-  let totalHorror = length horrorTargets
+  -- The TakeDamage/TakeHorror windows below report what *this* investigator
+  -- received. Points assigned to an Ally asset (or to another investigator) are
+  -- dealt to that card, not to this investigator, so they must not be counted
+  -- here -- otherwise "after you take damage" reactions fire for damage that was
+  -- soaked away entirely (#5394). The per-recipient DealtDamage/DealtHorror
+  -- windows already carry the full breakdown.
+  let totalDamage = count (== toTarget iid) damageTargets
+  let totalHorror = count (== toTarget iid) horrorTargets
 
   pushAll
     $ placementMessages
-      <> [ whenPlacedWindowMsg
-         , CheckWindows
-             $ [mkWhen (Window.TakeDamage source damageEffect (toTarget iid) totalDamage) | totalDamage > 0]
-             <> [mkWhen (Window.TakeHorror source (toTarget iid) totalHorror) | totalHorror > 0]
-             <> [ mkWhen (Window.DealtDamage source damageEffect target damage)
-                | target <- nub damageTargets
-                , let damage = count (== target) damageTargets
-                ]
-             <> [ mkWhen (Window.DealtHorror source target horror)
-                | target <- nub horrorTargets
-                , let horror = count (== target) horrorTargets
-                ]
-         ]
-      <> [whenAssignedWindowMsg | notNull horrorTargets]
-      <> [CheckDefeated source (toTarget aid) | aid <- checkAssets]
-      <> [ CheckWindows
-             $ map mkAfter placedWindows
-             <> [mkAfter (Window.TakeDamage source damageEffect (toTarget iid) totalDamage) | totalDamage > 0]
-             <> [mkAfter (Window.TakeHorror source (toTarget iid) totalHorror) | totalHorror > 0]
-             <> [ mkAfter (Window.DealtDamage source damageEffect target damage)
-                | target <- nub damageTargets
-                , let damage = count (== target) damageTargets
-                ]
-             <> [ mkAfter (Window.DealtHorror source target horror)
-                | target <- nub horrorTargets
-                , let horror = count (== target) horrorTargets
-                ]
-             <> [mkAfter (Window.AssignedHorror source iid horrorTargets) | notNull horrorTargets]
-         ]
+    <> [ whenPlacedWindowMsg
+       , CheckWindows
+           $ [mkWhen (Window.TakeDamage source damageEffect (toTarget iid) totalDamage) | totalDamage > 0]
+           <> [mkWhen (Window.TakeHorror source (toTarget iid) totalHorror) | totalHorror > 0]
+           <> [ mkWhen (Window.DealtDamage source damageEffect target damage)
+              | target <- nub damageTargets
+              , let damage = count (== target) damageTargets
+              ]
+           <> [ mkWhen (Window.DealtHorror source target horror)
+              | target <- nub horrorTargets
+              , let horror = count (== target) horrorTargets
+              ]
+       ]
+    <> [whenAssignedWindowMsg | notNull horrorTargets]
+    <> [CheckDefeated source (toTarget aid) | aid <- checkAssets]
+    <> [ CheckWindows
+           $ map mkAfter placedWindows
+           <> [mkAfter (Window.TakeDamage source damageEffect (toTarget iid) totalDamage) | totalDamage > 0]
+           <> [mkAfter (Window.TakeHorror source (toTarget iid) totalHorror) | totalHorror > 0]
+           <> [ mkAfter (Window.DealtDamage source damageEffect target damage)
+              | target <- nub damageTargets
+              , let damage = count (== target) damageTargets
+              ]
+           <> [ mkAfter (Window.DealtHorror source target horror)
+              | target <- nub horrorTargets
+              , let horror = count (== target) horrorTargets
+              ]
+           <> [mkAfter (Window.AssignedHorror source iid horrorTargets) | notNull horrorTargets]
+       ]
   pure a
 
-finalizeDamageAssignment a@InvestigatorAttrs{..} iid source damageStrategy damageTargets horrorTargets = do
+finalizeDamageAssignment a@InvestigatorAttrs {..} iid source damageStrategy damageTargets horrorTargets = do
   let
     damageEffect = case source of
       EnemyAttackSource _ -> AttackDamageEffect
@@ -491,8 +496,10 @@ finalizeDamageAssignment a@InvestigatorAttrs{..} iid source damageStrategy damag
     do
       push $ InvestigatorDirectDamage iid source 1 0
 
-  let totalDamage = length damageTargets
-  let totalHorror = length horrorTargets
+  -- See the note in 'finalizeDeferredDamageAssignment': only damage that landed
+  -- on this investigator counts toward their TakeDamage/TakeHorror window.
+  let totalDamage = count (== toTarget iid) damageTargets
+  let totalHorror = count (== toTarget iid) horrorTargets
 
   pushAll
     $ whenPlacedWindowMsg
@@ -526,7 +533,7 @@ finalizeDamageAssignment a@InvestigatorAttrs{..} iid source damageStrategy damag
          ]
   pure a
 
-assignHealthDamageEvenly a@InvestigatorAttrs{..} iid source matcher health damageTargets horrorTargets = do
+assignHealthDamageEvenly a@InvestigatorAttrs {..} iid source matcher health damageTargets horrorTargets = do
   healthDamageableAssets <-
     toList <$> getHealthDamageableAssets iid matcher source health damageTargets horrorTargets
   healthDamageableInvestigators <- select $ InvestigatorCanBeAssignedDamageBy iid
@@ -579,7 +586,7 @@ assignHealthDamageEvenly a@InvestigatorAttrs{..} iid source matcher health damag
   push $ chooseOne player healthDamageMessages
   pure a
 
-assignHorrorEvenly a@InvestigatorAttrs{..} iid source matcher sanity damageTargets horrorTargets = do
+assignHorrorEvenly a@InvestigatorAttrs {..} iid source matcher sanity damageTargets horrorTargets = do
   sanityDamageableAssets <-
     toList <$> getSanityDamageableAssets iid matcher source sanity damageTargets horrorTargets
   sanityDamageableInvestigators <- select $ InvestigatorCanBeAssignedHorrorBy iid
@@ -630,10 +637,10 @@ assignHorrorEvenly a@InvestigatorAttrs{..} iid source matcher sanity damageTarge
   push $ chooseOne player sanityDamageMessages
   pure a
 
-assignDamageEvenlyUnsupported a@InvestigatorAttrs{..} iid = do
+assignDamageEvenlyUnsupported a@InvestigatorAttrs {..} iid = do
   error "DamageEvenly only works with just horror or just damage, but not both"
 
-assignDamageToSingleTarget a@InvestigatorAttrs{..} iid source matcher health sanity damageTargets horrorTargets = do
+assignDamageToSingleTarget a@InvestigatorAttrs {..} iid source matcher health sanity damageTargets horrorTargets = do
   healthDamageableAssets <-
     getHealthDamageableAssets iid matcher source health damageTargets horrorTargets
   healthDamageableInvestigators <- select $ InvestigatorCanBeAssignedDamageBy iid
@@ -704,15 +711,16 @@ assignDamageToSingleTarget a@InvestigatorAttrs{..} iid source matcher health san
     <> (if not onlyAssets then map toInvestigatorMessage investigatorsWithCounts else [])
   pure a
 
--- | Header shown while the player assigns damage/horror, so they can see the
--- total amounts that still need to be applied.
+{- | Header shown while the player assigns damage/horror, so they can see the
+total amounts that still need to be applied.
+-}
 assignDamageTotalsLabel :: Int -> Int -> Text
 assignDamageTotalsLabel health sanity = case (health, sanity) of
   (h, 0) -> "Assign " <> tshow h <> " damage"
   (0, s) -> "Assign " <> tshow s <> " horror"
   (h, s) -> "Assign " <> tshow h <> " damage and " <> tshow s <> " horror"
 
-assignDamageDivided a@InvestigatorAttrs{..} iid source strategy matcher health sanity damageTargets horrorTargets = do
+assignDamageDivided a@InvestigatorAttrs {..} iid source strategy matcher health sanity damageTargets horrorTargets = do
   healthDamageMessages <-
     if health > 0
       then do
@@ -745,6 +753,20 @@ assignDamageDivided a@InvestigatorAttrs{..} iid source strategy matcher health s
                   horrorTargets
               ]
         let
+          assetsFirst amatcher = do
+            matchingAssets <- select $ mapOneOf AssetWithId healthDamageableAssets <> amatcher
+            healthDamageableAssets' <-
+              mapMaybe (\(x, mb) -> (x,) <$> mb) <$> forToSnd matchingAssets (field AssetRemainingHealth)
+            let
+              targetCount =
+                if null healthDamageableAssets'
+                  then 1 + length healthDamageableInvestigators
+                  else length healthDamageableAssets'
+              applyAll = targetCount == 1
+            pure
+              $ [damageInvestigator iid applyAll | null healthDamageableAssets']
+              <> map (`damageInvestigator` applyAll) healthDamageableInvestigators
+              <> map (\(x, n) -> damageAsset x (n >= health && applyAll)) healthDamageableAssets'
           go = \case
             AmongInvestigators imatcher -> do
               iids <- select imatcher
@@ -761,20 +783,8 @@ assignDamageDivided a@InvestigatorAttrs{..} iid source strategy matcher health s
                 _ ->
                   [damageInvestigator iid' False | iid' <- iids]
                     <> [damageAsset aid False | aid <- soakAssets]
-            DamageAssetsFirst amatcher -> do
-              matchingAssets <- select $ mapOneOf AssetWithId healthDamageableAssets <> amatcher
-              healthDamageableAssets' <-
-                mapMaybe (\(x, mb) -> (x,) <$> mb) <$> forToSnd matchingAssets (field AssetRemainingHealth)
-              let
-                targetCount =
-                  if null healthDamageableAssets'
-                    then 1 + length healthDamageableInvestigators
-                    else length healthDamageableAssets'
-                applyAll = targetCount == 1
-              pure
-                $ [damageInvestigator iid applyAll | null healthDamageableAssets']
-                <> map (`damageInvestigator` applyAll) healthDamageableInvestigators
-                <> map (\(x, n) -> damageAsset x (n >= health && applyAll)) healthDamageableAssets'
+            DamageAssetsFirst amatcher -> assetsFirst amatcher
+            DamageAndHorrorAssetsFirst amatcher -> assetsFirst amatcher
             HorrorAssetsFirst _ -> do
               let
                 targetCount =
@@ -877,6 +887,18 @@ assignDamageDivided a@InvestigatorAttrs{..} iid source strategy matcher health s
                   ((if applyAll then replicate sanity else pure) (toTarget aid) <> horrorTargets)
               ]
         let
+          horrorAssetsFirst amatcher = do
+            sanityDamageableAssets' <- select $ mapOneOf AssetWithId sanityDamageableAssets <> amatcher
+            let
+              targetCount =
+                if null sanityDamageableAssets'
+                  then 1 + length sanityDamageableInvestigators
+                  else length sanityDamageableAssets'
+              applyAll = targetCount == 1
+
+            pure $ [damageInvestigator iid applyAll | null sanityDamageableAssets']
+              <> map (`damageAsset` applyAll) sanityDamageableAssets'
+              <> map (`damageInvestigator` applyAll) sanityDamageableInvestigators
           go = \case
             AmongInvestigators imatcher -> do
               iids <- select imatcher
@@ -904,18 +926,8 @@ assignDamageDivided a@InvestigatorAttrs{..} iid source strategy matcher health s
               pure $ [damageInvestigator iid applyAll]
                 <> map (\(x, n) -> damageAsset x (n >= sanity && applyAll)) sanityDamageableAssets'
                 <> map (`damageInvestigator` applyAll) sanityDamageableInvestigators
-            HorrorAssetsFirst amatcher -> do
-              sanityDamageableAssets' <- select $ mapOneOf AssetWithId sanityDamageableAssets <> amatcher
-              let
-                targetCount =
-                  if null sanityDamageableAssets'
-                    then 1 + length sanityDamageableInvestigators
-                    else length sanityDamageableAssets'
-                applyAll = targetCount == 1
-
-              pure $ [damageInvestigator iid applyAll | null sanityDamageableAssets']
-                <> map (`damageAsset` applyAll) sanityDamageableAssets'
-                <> map (`damageInvestigator` applyAll) sanityDamageableInvestigators
+            HorrorAssetsFirst amatcher -> horrorAssetsFirst amatcher
+            DamageAndHorrorAssetsFirst amatcher -> horrorAssetsFirst amatcher
             DamageDirect -> pure [damageInvestigator iid True]
             DamageFromHastur -> go DamageAny
             DamageAnyDeferred -> go DamageAny
@@ -988,13 +1000,14 @@ assignDamageDivided a@InvestigatorAttrs{..} iid source strategy matcher health s
     $ questionWithSource source player
     $ QuestionLabel (assignDamageTotalsLabel health sanity) Nothing
     $ ChooseOne
-    $ healthDamageMessages' <> sanityDamageMessages'
+    $ healthDamageMessages'
+    <> sanityDamageMessages'
   pure a
 
-handleDrivenInsane a@InvestigatorAttrs{..} iid = do
+handleDrivenInsane a@InvestigatorAttrs {..} iid = do
   pure $ a & mentalTraumaL .~ investigatorSanity & drivenInsaneL .~ True & defeatedL .~ True
 
-handleCheckDefeated a@InvestigatorAttrs{..} source = do
+handleCheckDefeated a@InvestigatorAttrs {..} source = do
   facingDefeat <- getFacingDefeat a
   if facingDefeat
     then do
@@ -1024,7 +1037,7 @@ handleCheckDefeated a@InvestigatorAttrs{..} source = do
 
   pure a
 
-handleAssignDamage a@InvestigatorAttrs{..} target = do
+handleAssignDamage a@InvestigatorAttrs {..} target = do
   push $ AssignedDamage target investigatorAssignedHealthDamage investigatorAssignedSanityDamage
   pure
     $ a
@@ -1036,13 +1049,13 @@ handleAssignDamage a@InvestigatorAttrs{..} target = do
     & (assignedSanityDamageL .~ 0)
     & (unhealedHorrorThisRoundL +~ investigatorAssignedSanityDamage)
 
-handleCancelAssignedDamage a@InvestigatorAttrs{..} target damageReduction horrorReduction = do
+handleCancelAssignedDamage a@InvestigatorAttrs {..} target damageReduction horrorReduction = do
   pure
     $ a
     & (assignedHealthDamageL %~ max 0 . subtract damageReduction)
     & (assignedSanityDamageL %~ max 0 . subtract horrorReduction)
 
-handleApplyHealing a@InvestigatorAttrs{..} source msg = do
+handleApplyHealing a@InvestigatorAttrs {..} source msg = do
   cannotHealHorror <- sourcePerformerHasModifier source CannotHealHorror
   cannotHealDamage <- sourcePerformerHasModifier source CannotHealDamage
   let health = if cannotHealDamage then 0 else findWithDefault 0 source investigatorAssignedHealthHeal
@@ -1057,7 +1070,7 @@ handleApplyHealing a@InvestigatorAttrs{..} source msg = do
     push $ Do msg
   pure a
 
-handleDoApplyHealing a@InvestigatorAttrs{..} source = do
+handleDoApplyHealing a@InvestigatorAttrs {..} source = do
   cannotHealHorror <- sourcePerformerHasModifier source CannotHealHorror
   cannotHealDamage <- sourcePerformerHasModifier source CannotHealDamage
   let health = if cannotHealDamage then 0 else findWithDefault 0 source investigatorAssignedHealthHeal
@@ -1097,7 +1110,7 @@ handleDoApplyHealing a@InvestigatorAttrs{..} source = do
     & (assignedSanityHealL %~ deleteMap source)
     & (horrorHealedL .~ 0)
 
-handleHealDamage a@InvestigatorAttrs{..} iid source amount' msg = do
+handleHealDamage a@InvestigatorAttrs {..} iid source amount' msg = do
   mods <- getModifiers a
   cannotHealDamage <- sourcePerformerHasModifier source CannotHealDamage
   let canHealAtFullSources = [sourceMatcher | CanHealAtFull sourceMatcher DamageType <- mods]
@@ -1133,23 +1146,23 @@ handleHealDamage a@InvestigatorAttrs{..} iid source amount' msg = do
           <> [Label "$label.healRemainingDamageNormally" [Do msg] | investigatorHealthDamage a > 0]
   pure a
 
-handleDoHealDamage a@InvestigatorAttrs{..} iid source amount = do
+handleDoHealDamage a@InvestigatorAttrs {..} iid source amount = do
   cannotHealDamage <- sourcePerformerHasModifier source CannotHealDamage
   unless cannotHealDamage do
     pushAll [HealDamageDelayed (InvestigatorTarget iid) source amount, ApplyHealing source]
   pure a
 
-handleHealDamageDelayed a@InvestigatorAttrs{..} source n = do
+handleHealDamageDelayed a@InvestigatorAttrs {..} source n = do
   cannotHealDamage <- sourcePerformerHasModifier source CannotHealDamage
   if cannotHealDamage
     then pure a
     else pure $ a & assignedHealthHealL %~ insertWith (+) source n
 
-handleHealHorrorWithAdditional a@InvestigatorAttrs{..} iid amount = do
+handleHealHorrorWithAdditional a@InvestigatorAttrs {..} iid amount = do
   -- exists to have no callbacks, and to be resolved with AdditionalHealHorror
   pure $ a & (horrorHealedL .~ amount)
 
-handleAdditionalHealHorror a@InvestigatorAttrs{..} iid source additional = do
+handleAdditionalHealHorror a@InvestigatorAttrs {..} iid source additional = do
   -- exists to have Callbacks for the total, get from investigatorHorrorHealed
   -- TODO: HERE  MAYBE
   cannotHealHorror <- sourcePerformerHasModifier source CannotHealHorror
@@ -1161,7 +1174,7 @@ handleAdditionalHealHorror a@InvestigatorAttrs{..} iid source additional = do
         push $ HealHorror (toTarget iid) source totalHealed
       pure a
 
-handleHealHorror a@InvestigatorAttrs{..} iid source amount' = do
+handleHealHorror a@InvestigatorAttrs {..} iid source amount' = do
   mods <- getModifiers a
   let n = sum [x | HealingTaken x <- mods]
   let amount = amount' + n
@@ -1170,7 +1183,7 @@ handleHealHorror a@InvestigatorAttrs{..} iid source amount' = do
     $ pushAll [HealHorrorDelayed (InvestigatorTarget iid) source amount, ApplyHealing source]
   pure a
 
-handleHealHorrorDelayed a@InvestigatorAttrs{..} target source n msg = do
+handleHealHorrorDelayed a@InvestigatorAttrs {..} target source n msg = do
   cannotHealHorror <- sourcePerformerHasModifier source CannotHealHorror
 
   -- afterWindow <- checkWindows [mkAfter $ Window.Healed #horror (toTarget a) source n]
@@ -1211,7 +1224,7 @@ handleHealHorrorDelayed a@InvestigatorAttrs{..} target source n msg = do
 
   pure a
 
-handleDoHealHorrorDelayed a@InvestigatorAttrs{..} source n = do
+handleDoHealHorrorDelayed a@InvestigatorAttrs {..} source n = do
   let iid = investigatorId
   cannotHealHorror <- sourcePerformerHasModifier source CannotHealHorror
   unless cannotHealHorror do
@@ -1234,19 +1247,19 @@ handleDoHealHorrorDelayed a@InvestigatorAttrs{..} source n = do
              ]
   pure a
 
-handleDoHealHorror a@InvestigatorAttrs{..} source n = do
+handleDoHealHorror a@InvestigatorAttrs {..} source n = do
   cannotHealHorror <- sourcePerformerHasModifier source CannotHealHorror
   if cannotHealHorror
     then pure a
     else pure $ a & assignedSanityHealL %~ insertWith (+) source n
 
-handleReassignHorror a@InvestigatorAttrs{..} n = do
+handleReassignHorror a@InvestigatorAttrs {..} n = do
   pure $ a & assignedSanityDamageL %~ max 0 . subtract n
 
-handleReassignDamage a@InvestigatorAttrs{..} n = do
+handleReassignDamage a@InvestigatorAttrs {..} n = do
   pure $ a & assignedHealthDamageL %~ max 0 . subtract n
 
-handleHealHorrorDirectly a@InvestigatorAttrs{..} iid source amount = do
+handleHealHorrorDirectly a@InvestigatorAttrs {..} iid source amount = do
   -- USE ONLY WHEN NO CALLBACKS
   let totalSanity = amount + investigatorHorrorHealed
   let overHealSanity = max 0 (totalSanity - a.sanityDamage - a.assignedSanityDamage)
@@ -1259,7 +1272,7 @@ handleHealHorrorDirectly a@InvestigatorAttrs{..} iid source amount = do
     $ a'
     & (unhealedHorrorThisRoundL %~ min 0 . subtract amount)
 
-handleHealDamageDirectly a@InvestigatorAttrs{..} iid source amount = do
+handleHealDamageDirectly a@InvestigatorAttrs {..} iid source amount = do
   -- USE ONLY WHEN NO CALLBACKS
   cannotHealDamage <- sourcePerformerHasModifier source CannotHealDamage
   if cannotHealDamage
@@ -1270,7 +1283,7 @@ handleHealDamageDirectly a@InvestigatorAttrs{..} iid source amount = do
 
       removeInvestigatorTokens #damage amount a
 
-handleInvestigatorWhenDefeated a@InvestigatorAttrs{..} source iid = do
+handleInvestigatorWhenDefeated a@InvestigatorAttrs {..} source iid = do
   modifiedHealth <- field InvestigatorHealth (toId a)
   modifiedSanity <- field InvestigatorSanity (toId a)
   let
@@ -1285,20 +1298,20 @@ handleInvestigatorWhenDefeated a@InvestigatorAttrs{..} source iid = do
   pushAll [windowMsg, InvestigatorIsDefeated source iid]
   pure a
 
-handleInvestigatorKilled a@InvestigatorAttrs{..} source iid = do
+handleInvestigatorKilled a@InvestigatorAttrs {..} source iid = do
   unless investigatorDefeated do
     isLead <- (== iid) <$> getLead
     pushAll $ [ChooseLeadInvestigator | isLead] <> [Msg.InvestigatorDefeated source iid]
   pure $ a & defeatedL .~ True & endedTurnL .~ True & killedL .~ True
 
-handleSufferTrauma a@InvestigatorAttrs{..} iid physical mental = do
+handleSufferTrauma a@InvestigatorAttrs {..} iid physical mental = do
   push $ CheckTrauma iid
   pure $ a & physicalTraumaL +~ physical & mentalTraumaL +~ mental
 
-handleSetTrauma a@InvestigatorAttrs{..} iid physical mental = do
+handleSetTrauma a@InvestigatorAttrs {..} iid physical mental = do
   pure $ a & physicalTraumaL .~ physical & mentalTraumaL .~ mental
 
-handleCheckTrauma a@InvestigatorAttrs{..} iid = do
+handleCheckTrauma a@InvestigatorAttrs {..} iid = do
   pushWhen (investigatorMentalTrauma >= investigatorSanity) $ DrivenInsane iid
   pushWhen (investigatorPhysicalTrauma >= investigatorHealth) $ InvestigatorKilled (toSource a) iid
   pushWhen
@@ -1306,14 +1319,14 @@ handleCheckTrauma a@InvestigatorAttrs{..} iid = do
     CheckForRemainingInvestigators
   pure a
 
-handleHealTrauma a@InvestigatorAttrs{..} iid physical mental = do
+handleHealTrauma a@InvestigatorAttrs {..} iid physical mental = do
   pure
     $ a
     & (physicalTraumaL %~ max 0 . subtract physical)
     & (mentalTraumaL %~ max 0 . subtract mental)
 
 getHealthDamageableAssets
-  :: (HasGame m, Tracing m)
+  :: HasGame m
   => InvestigatorId
   -> AssetMatcher
   -> Source
@@ -1346,7 +1359,7 @@ getHealthDamageableAssets iid matcher source _ damageTargets horrorTargets = do
   pure $ setFromList $ filter (`notElem` excludes) notFull
 
 getSanityDamageableAssets
-  :: (HasGame m, Tracing m)
+  :: HasGame m
   => InvestigatorId
   -> AssetMatcher
   -> Source
@@ -1377,13 +1390,13 @@ getSanityDamageableAssets iid matcher source _ damageTargets horrorTargets = do
     pure $ remaining - assigned > 0
   pure $ setFromList $ filter (`notElem` excludes) notFull
 
-sourcePerformerHasModifier :: (HasGame m, Tracing m) => Source -> ModifierType -> m Bool
+sourcePerformerHasModifier :: HasGame m => Source -> ModifierType -> m Bool
 sourcePerformerHasModifier source m =
   getSourceController source >>= \case
     Nothing -> pure False
     Just iid -> hasModifier iid m
 
-getFacingDefeat :: (HasGame m, Tracing m) => InvestigatorAttrs -> m Bool
+getFacingDefeat :: HasGame m => InvestigatorAttrs -> m Bool
 getFacingDefeat a@InvestigatorAttrs {..} = do
   canOnlyBeDefeatedByDamage <- hasModifier a CanOnlyBeDefeatedByDamage
   modifiedHealth <- field InvestigatorHealth (toId a)

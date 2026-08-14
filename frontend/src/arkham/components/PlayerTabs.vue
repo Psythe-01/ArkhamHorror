@@ -9,11 +9,11 @@ import { ArrowPathIcon } from '@heroicons/vue/20/solid';
 import * as ArkhamGame from '@/arkham/types/Game';
 import type { Investigator } from '@/arkham/types/Investigator';
 import type { Question } from '@/arkham/types/Question';
+import { MessageType } from '@/arkham/types/Message';
 import type { TarotCard } from '@/arkham/types/TarotCard';
 import { imgsrc } from '@/arkham/helpers';
 import { gameLocalStorageKey } from '@/arkham/localStorage';
 import { IsMobile } from '@/arkham/isMobile';
-import { useSettings } from '@/stores/settings'
 import { useDbCardStore } from '@/stores/dbCards'
 
 export interface Props {
@@ -45,13 +45,6 @@ const inactiveInvestigators = computed(() => props.playerOrder.filter(iid => pro
 const lead = computed(() => `url('${imgsrc(`tokens/lead-investigator.png`)}')`)
 const { isMobile } = IsMobile();
 const store = useDbCardStore()
-
-// AI-investigator seats carry an entry in settings.aiPlayers. The seat badge is
-// only shown when the dev-only "AI Investigators" flag is enabled.
-const settings = useSettings()
-function isAiSeat(investigator: Investigator): boolean {
-  return settings.aiInvestigatorsEnabled && !!props.game.settings.aiPlayers[investigator.playerId]
-}
 
 function tabClass(investigator: Investigator) {
   const pid = investigator.playerId
@@ -106,7 +99,13 @@ function selectTab(i: string) {
   resetSwitchStack(i, props.playerId)
 }
 
+// The eye button is the only way to act as another seat, so an explicit perspective
+// switch must outrank automatic routing for the current game step -- otherwise a
+// declinable fast window on the destination seat is filtered out of
+// focusQuestionPlayers() and the sole-question rule immediately routes back to the
+// active investigator, stranding that seat's abilities out of reach (#5350).
 function selectTabExtended(i: string) {
+  manualSelectionAtStep = props.game.scenarioSteps
   selectedTab.value = i
   resetSwitchStack(i, i)
   if (solo?.value && props.playerId !== i && switchInvestigator) {
@@ -137,10 +136,6 @@ const ACTIONABLE_SELECTOR = [
   '.resource--can-take',
 ].join(',')
 
-function isAiPlayer(playerId: string) {
-  return playerId in props.game.settings.aiPlayers
-}
-
 function isEnabledAction(element: Element): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false
   if (element.matches(':disabled,[aria-disabled="true"]')) return false
@@ -150,6 +145,7 @@ function isEnabledAction(element: Element): element is HTMLElement {
 function actionLocations() {
   const scope = playerInfo.value?.closest<HTMLElement>('#scenario') ?? playerInfo.value
   const tabs = new Set<string>()
+  const forcedTabs = new Set<string>()
   let outsideTab = false
 
   for (const element of scope?.querySelectorAll(ACTIONABLE_SELECTOR) ?? []) {
@@ -160,14 +156,39 @@ function actionLocations() {
       continue
     }
     const playerId = tab.dataset.playerTab
-    if (playerId && !isAiPlayer(playerId)) tabs.add(playerId)
+    if (playerId) {
+      tabs.add(playerId)
+      if (element.matches('.forced-ability-button')) forcedTabs.add(playerId)
+    }
   }
 
-  return { tabs, outsideTab }
+  return { tabs, forcedTabs, outsideTab }
 }
 
 function humanQuestionPlayers() {
-  return Object.keys(props.game.question).filter(pid => !isAiPlayer(pid))
+  return Object.keys(props.game.question)
+}
+
+// An out-of-turn fast player window: a PlayerWindowChooseOne carrying that seat's own
+// Skip Triggers button. It is optional by construction and the engine re-offers it at
+// the next player window, so it must not hold the solo perspective on a seat that is
+// not taking a turn -- otherwise ending "Ashcan" Pete's turn strands you on Pete while
+// Rex, the turn player, waits behind a tab (#5284). Reaction windows decode as
+// WindowChooseOne (isPlayerWindow false) and are deliberately NOT covered: those are
+// tied to something that just happened and still deserve focus.
+function isDeclinableFastWindow(playerId: string) {
+  if (!ArkhamGame.activeQuestionIsPlayerWindow(props.game, playerId)) return false
+  return ArkhamGame.choices(props.game, playerId)
+    .some(choice => choice.tag === MessageType.SKIP_TRIGGERS_BUTTON)
+}
+
+// Question seats allowed to claim the perspective. If every seat is a declinable fast
+// window there is nothing better to route to, so fall back to the full list rather than
+// leaving the only answerable question unreachable.
+function focusQuestionPlayers() {
+  const players = humanQuestionPlayers()
+  const focusable = players.filter(pid => !isDeclinableFastWindow(pid))
+  return focusable.length > 0 ? focusable : players
 }
 
 function skillTestPlayerId() {
@@ -206,7 +227,7 @@ function frameIsStillNeeded(frame: SwitchFrame, tabs: Set<string>) {
   }
   if (frame.reason === 'tab-action') return tabs.has(frame.tab)
   if (frame.reason === 'sole-question') {
-    const questionPlayers = humanQuestionPlayers()
+    const questionPlayers = focusQuestionPlayers()
     return questionPlayers.length === 1 && questionPlayers[0] === frame.perspective
   }
   if (frame.reason === 'covered-question') return false
@@ -299,9 +320,13 @@ function inspectActions() {
   }
   manualSelectionAtStep = null
 
-  const { tabs, outsideTab } = actionLocations()
-  const questionPlayers = humanQuestionPlayers()
+  const { tabs, forcedTabs, outsideTab } = actionLocations()
+  const questionPlayers = focusQuestionPlayers()
   const soleQuestionPlayer = questionPlayers.length === 1 ? questionPlayers[0] : null
+  const answerableQuestionPlayers = questionPlayers.filter(pid => ArkhamGame.choices(props.game, pid).length > 0)
+  const soleAnswerableQuestionPlayer = questionPlayers.length > 1 && answerableQuestionPlayers.length === 1
+    ? answerableQuestionPlayers[0]
+    : null
   const skillTestPlayer = skillTestPlayerId()
   const activeQuestionPlayer = activeInvestigatorPlayerId()
   const activePlayerCoversOtherQuestions = solo?.value === true
@@ -310,6 +335,19 @@ function inspectActions() {
     && questionPlayers.includes(activeQuestionPlayer)
     && questionPlayers.every(pid => pid === activeQuestionPlayer || playerCanAnswerAllQuestionsFrom(activeQuestionPlayer, pid))
 
+  // Some shared prompts create a question for every investigator but only give
+  // one of them choices. Route to that investigator instead of leaving an
+  // empty version of the prompt in front of the active investigator.
+  if (solo?.value === true && soleAnswerableQuestionPlayer) {
+    automaticSwitchCandidate = null
+    if (selectedTab.value !== soleAnswerableQuestionPlayer || props.playerId !== soleAnswerableQuestionPlayer) {
+      // This decision comes from the settled game question rather than
+      // transient DOM controls, so it does not need the action stability delay.
+      pushAutomaticFrame(soleAnswerableQuestionPlayer, soleAnswerableQuestionPlayer, 'sole-question')
+    }
+    return
+  }
+
   // Keep the active investigator in view when they can answer every question
   // offered to the other investigators. Switching tabs adds no capability and
   // needlessly interrupts their turn.
@@ -317,6 +355,21 @@ function inspectActions() {
     if (selectedTab.value !== activeQuestionPlayer || props.playerId !== activeQuestionPlayer) {
       if (!automaticSwitchIsStable(`covered-question:${activeQuestionPlayer}`)) return
       pushAutomaticFrame(activeQuestionPlayer, activeQuestionPlayer, 'covered-question')
+    } else {
+      automaticSwitchCandidate = null
+    }
+    return
+  }
+
+  // A forced ability can belong to a card in another investigator's play area,
+  // even though the active investigator owns the question. Keep that
+  // investigator's perspective while showing the only tab where the forced
+  // ability can actually be selected.
+  if (solo?.value === true && soleQuestionPlayer && tabs.size === 1 && forcedTabs.size === 1 && !forcedTabs.has(soleQuestionPlayer)) {
+    const [forcedTab] = forcedTabs
+    if (selectedTab.value !== forcedTab || props.playerId !== soleQuestionPlayer) {
+      if (!automaticSwitchIsStable(`forced-tab:${forcedTab}:${soleQuestionPlayer}`)) return
+      pushAutomaticFrame(forcedTab, soleQuestionPlayer, 'sole-question')
     } else {
       automaticSwitchCandidate = null
     }
@@ -389,7 +442,6 @@ watch(
       >
         <span v-if="isMobile">{{ getInvestigatorName(investigator.name.title).split(' ')[0] }}</span>
         <span v-else>{{ getInvestigatorName(investigator.name.title) }}</span>
-        <span v-if="isAiSeat(investigator)" class="ai-badge" v-tooltip="'AI controlled'">AI</span>
         <button
           v-if="solo"
           v-tooltip="instructions(investigator)"
@@ -409,7 +461,6 @@ watch(
         :class='tabClass(investigator)'
       >
         <span>{{ investigator.name.title }}</span>
-        <span v-if="isAiSeat(investigator)" class="ai-badge" v-tooltip="'AI controlled'">AI</span>
         <button
           v-if="solo"
           v-tooltip="instructions(investigator)"
@@ -587,21 +638,6 @@ ul.tabs__header > li.tab--has-actions {
     filter: contrast(200%);
     color: black;
   }
-}
-
-.ai-badge {
-  align-self: center;
-  margin-right: 5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 0.65em;
-  font-weight: bold;
-  letter-spacing: 0.08em;
-  line-height: 1.4;
-  color: #d7e8b0;
-  background: rgba(110, 134, 64, 0.45);
-  border: 1px solid rgba(110, 134, 64, 0.7);
-  text-transform: uppercase;
 }
 
 .fa-icon {

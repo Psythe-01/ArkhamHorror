@@ -15,14 +15,16 @@ import KeysStatus from '@/arkham/components/TheScarletKeys/KeysStatus.vue'
 import WorldMap from '@/arkham/components/TheScarletKeys/WorldMap.vue'
 import Supplies from '@/arkham/components/Supplies.vue'
 import XpBreakdown from '@/arkham/components/XpBreakdown.vue'
-import type { XpBreakdownStep } from '@/arkham/types/Xp'
+import { type XpBreakdown as XpBreakdownType, type XpBreakdownStep, xpBreakdownDecoder } from '@/arkham/types/Xp'
+import { type TokenFace, tokenFaceDecoder } from '@/arkham/types/ChaosToken'
+import * as JsonDecoder from 'ts.data.json'
 import InvestigatorRow from '@/arkham/components/InvestigatorRow.vue'
 import CampaignLogSection from '@/arkham/components/CampaignLogSection.vue'
 import CampaignLogSpecialRules from '@/arkham/components/CampaignLogSpecialRules.vue'
 import CampaignLogRecordedSets from '@/arkham/components/CampaignLogRecordedSets.vue'
 import CampaignLogInvestigatorSection from '@/arkham/components/CampaignLogInvestigatorSection.vue'
 import CampaignLogPartners from '@/arkham/components/CampaignLogPartners.vue'
-import { achievementCatalog } from '@/arkham/achievements'
+import { achievementCatalog, activeAchievementPart, type AchievementPart } from '@/arkham/achievements'
 import CampaignLogChaosBag from '@/arkham/components/CampaignLogChaosBag.vue'
 import CampaignLogUltimatumsAndBoons from '@/arkham/components/CampaignLogUltimatumsAndBoons.vue'
 import CampaignLogAchievements from '@/arkham/components/CampaignLogAchievements.vue'
@@ -32,6 +34,7 @@ import { useI18n } from 'vue-i18n'
 import { useDbCardStore } from '@/stores/dbCards'
 
 import DiscoveredRunes from '@/arkham/components/TheDrownedCity/DiscoveredRunes.vue'
+import ArtifactsEarned from '@/arkham/components/TheDrownedCity/ArtifactsEarned.vue'
 import ResidentNotes from '@/arkham/components/TheFeastOfHemlockVale/ResidentNotes.vue'
 import AreasSurveyed from '@/arkham/components/TheFeastOfHemlockVale/AreasSurveyed.vue'
 import DayTimeTracker from '@/arkham/components/TheFeastOfHemlockVale/DayTimeTracker.vue'
@@ -146,13 +149,37 @@ const otherModeTitle = computed(() => {
   return title === 'The Dream-Quest' ? 'The Web of Dreams' : 'The Dream-Quest'
 })
 
+// The mini-campaign being played, when only one half is in play (null = show all).
+const activeCampaignPart = computed<AchievementPart | null>(() =>
+  activeAchievementPart(props.game.campaign?.meta?.campaignMode)
+)
+
+// The whole inactive campaign rides along in the meta for the Dream Eaters A/B split
+const otherCampaignAttrs = computed(() => props.game.campaign?.meta?.otherCampaignAttrs ?? null)
+
 // decode the counterpart log if present (Dream Eaters A/B split)
 const otherLog = ref<LogContents | null>(null)
-if (props.game.campaign?.meta?.otherCampaignAttrs?.log) {
+if (otherCampaignAttrs.value?.log) {
   logContentsDecoder
-    .decodePromise(props.game.campaign.meta.otherCampaignAttrs.log)
+    .decodePromise(otherCampaignAttrs.value.log)
     .then(res => { otherLog.value = res })
     .catch(() => { otherLog.value = null })
+}
+
+const otherXpBreakdown = ref<XpBreakdownType | null>(null)
+if (otherCampaignAttrs.value?.xpBreakdown) {
+  xpBreakdownDecoder
+    .decodePromise(otherCampaignAttrs.value.xpBreakdown)
+    .then(res => { otherXpBreakdown.value = res })
+    .catch(() => { otherXpBreakdown.value = null })
+}
+
+const otherChaosBag = ref<TokenFace[] | null>(null)
+if (otherCampaignAttrs.value?.chaosBag) {
+  JsonDecoder.array(tokenFaceDecoder, 'TokenFace[]')
+    .decodePromise(otherCampaignAttrs.value.chaosBag)
+    .then(res => { otherChaosBag.value = res })
+    .catch(() => { otherChaosBag.value = null })
 }
 
 // A mapping of title → LogContents. When there is no split, we expose just the main one.
@@ -180,11 +207,11 @@ watch(logTitles, (titles) => {
 const selectedLog = computed<LogContents>(() => logMap.value[selectedTitle.value] ?? mainLog.value)
 
 // --- Investigators shown depend on which half is selected -----------------------
-const investigators = computed(() => {
-  const mainTitle = dreamModeTitle.value ?? logTitles.value[0]
-  const showingMain = selectedTitle.value === mainTitle
-  return showingMain ? Object.values(props.game.investigators) : Object.values(props.game.otherInvestigators)
-})
+const showingMain = computed(() => selectedTitle.value === (dreamModeTitle.value ?? logTitles.value[0]))
+
+const investigators = computed(() =>
+  showingMain.value ? Object.values(props.game.investigators) : Object.values(props.game.otherInvestigators)
+)
 
 // --- Remembered (scenario-only) -------------------------------------------------
 const remembered = computed(() => {
@@ -281,10 +308,14 @@ watch(additionalLogSections, (sections) => {
 
 const allGameInvestigators = computed(() => ({
   ...props.game.investigators,
+  ...props.game.otherInvestigators,
   ...props.game.killedInvestigators,
 }))
 
 const breakdowns = computed<XpBreakdownStep[]>(() => {
+  if (!showingMain.value) {
+    return otherXpBreakdown.value ?? []
+  }
   if (props.game.campaign?.xpBreakdown) {
     return props.game.campaign.xpBreakdown
   }
@@ -315,10 +346,36 @@ const isSection = (r: LogKey): r is SectionLogKey => {
 const lowerFirst = (s: string) => (s.slice(0, 1).toLowerCase() + s.slice(1)).replace(/'/g, '')
 const clamp6 = (n: unknown) => Math.max(0, Math.min(6, Math.floor(Number(n) || 0)))
 
+// Rendered by ArtifactsEarned as a checklist, so exclude them from Campaign Notes.
+const TDC_ARTIFACT_KEYS = new Set([
+  'BarrierNode',
+  'GrislyMask',
+  'TidalTablet',
+  'ShardOfYchlecht',
+  'ObsidianClaw',
+  'HorrorInClay',
+])
+
+// Tasks are recorded per-investigator (progress counts live in each
+// investigator's log), so exclude them from the shared Campaign Notes; they are
+// shown in the per-investigator sections instead.
+const TDC_TASK_KEYS = new Set([
+  'WalkInFaith',
+  'ToeTheLine',
+  'NoPlaceLikeHome',
+  'GoodMoney',
+  'DoNoHarm',
+  'ProveYourWorth',
+  'DreamsOfDestruction',
+  'PlumbTheDepths',
+])
+
 const recorded = computed(() => {
   return selectedLog.value.recorded
     .filter(r => !['Teachings1', 'Teachings2', 'Teachings3'].includes(r.tag))
     .filter((c) => !isSection(c))
+    .filter((c) => !(c.tag === 'TheDrownedCityKey' && TDC_ARTIFACT_KEYS.has(String((c as any).contents))))
+    .filter((c) => !(c.tag === 'TheDrownedCityKey' && TDC_TASK_KEYS.has(String((c as any).contents))))
     .map(formatKey)
 })
 
@@ -479,12 +536,15 @@ const sections = computed<SectionModel[]>(() => {
 const recordedSets = computed(() => selectedLog.value.recordedSets as any)
 const recordedCounts = computed(() =>
   selectedLog.value.recordedCounts.filter((r) => {
+    if (r[0].tag === 'TheDrownedCityKey' && TDC_TASK_KEYS.has(String((r[0] as any).contents))) return false
     return (r[0].tag !== 'TheScarletKeysKey' && r[0].contents !== 'Time') && !isSection(r[0])
   })
 )
 
 const partners = computed(() => (selectedLog.value as any).partners ?? {})
-const chaosBag = computed(() => props.game.campaign?.chaosBag ?? [])
+const chaosBag = computed(() =>
+  showingMain.value ? (props.game.campaign?.chaosBag ?? []) : (otherChaosBag.value ?? [])
+)
 const hasSupplies = computed(() => Object.values(investigators.value).some(i => i.supplies.length > 0))
 
 // --- Investigator log sections --------------------------------------------------
@@ -537,6 +597,7 @@ const NON_CARD_KEYS = new Set([
   'edgeOfTheEarth.key.sealsPlaced',
   'edgeOfTheEarth.key.sealsRecovered',
   'theDrownedCity.key.discoveredGlyphs',
+  'theDrownedCity.key.rlyehMap',
 ])
 
 const findCard = (cardCode: string): CardDef | undefined =>
@@ -604,6 +665,11 @@ const displayRecordValue = (key: string, value: any): string => {
   if (key === 'edgeOfTheEarth.key.suppliesRecovered' && contents) {
     const supply = contents.charAt(0).toLowerCase() + contents.slice(1)
     return t(`edgeOfTheEarth.suppliesRecovered.${supply}`, supply)
+  }
+
+  if (key === 'theDrownedCity.key.rlyehMap' && contents) {
+    const scenario = contents.charAt(0).toLowerCase() + contents.slice(1)
+    return t(`theDrownedCity.rlyehMap.${scenario}`, scenario)
   }
 
   if (isSeal(key)) return ''
@@ -727,6 +793,24 @@ onUnmounted(() => {
           <h1>{{ game.name }}</h1>
         </div>
 
+        <div v-if="logTitles.length > 1" class="options campaign-side-options">
+          <div
+            v-for="title in logTitles"
+            :key="title"
+            class="log-title-option"
+            :class="{ checked: title === selectedTitle }"
+          >
+            <input
+              name="log"
+              type="radio"
+              v-model="selectedTitle"
+              :value="title"
+              :id="`log${title}`"
+            />
+            <label :for="`log${title}`">{{ title }}</label>
+          </div>
+        </div>
+
         <nav class="log-tabs">
           <button
             type="button"
@@ -794,6 +878,7 @@ onUnmounted(() => {
           :achievements="achievements"
           :user-achievements="userAchievements"
           :campaign-id="game.campaign?.id"
+          :part="activeCampaignPart"
         />
 
         <template v-for="(section, index) in additionalLogSections" :key="section.title">
@@ -824,24 +909,6 @@ onUnmounted(() => {
         />
 
         <div class="log-categories">
-          <div v-if="logTitles.length > 1" class="options">
-            <div
-              v-for="title in logTitles"
-              :key="title"
-              class="log-title-option"
-              :class="{ checked: title === selectedTitle }"
-            >
-              <input
-                name="log"
-                type="radio"
-                v-model="selectedTitle"
-                :value="title"
-                :id="`log${title}`"
-              />
-              <label :for="`log${title}`">{{ title }}</label>
-            </div>
-          </div>
-
           <div v-if="hasSupplies" class="supplies-container">
             <h2>{{ t('theForgottenAge.supplies.title') }}</h2>
             <div class="supplies-content">
@@ -924,6 +991,7 @@ onUnmounted(() => {
             :displayRecordValue="displayRecordValue"
           />
 
+          <ArtifactsEarned v-if="game.campaign?.id === '11'" :log="selectedLog" :game-id="game.id" @refresh="emit('refresh')" />
           <DiscoveredRunes v-if="game.campaign?.id === '11'" :log="selectedLog" :game-id="game.id" @refresh="emit('refresh')" />
 
           <!-- Campaign recorded sets + counts -->
@@ -1158,6 +1226,11 @@ h1 {
 .options {
   display: flex;
   gap: 8px;
+}
+
+/* sits above the tab nav — it switches which campaign every tab describes */
+.campaign-side-options {
+  margin-bottom: 16px;
 }
 
 .log-title-option {

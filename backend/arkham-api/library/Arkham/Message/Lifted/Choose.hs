@@ -18,9 +18,11 @@ import Arkham.I18n
 import Arkham.Id
 import Arkham.Key
 import Arkham.Location.Grid
+import Arkham.LocationSymbol (LocationSymbol)
 import Arkham.Matcher.Enemy
 import Arkham.Matcher.Investigator
 import Arkham.Matcher.Location
+import Arkham.Matcher.Patterns (pattern InvestigatorCanBeDamaged)
 import Arkham.Message (Message (Would), questionWithSource, uiToRun)
 import Arkham.Message qualified as Msg
 import Arkham.Message.Lifted
@@ -34,12 +36,10 @@ import Arkham.Source
 import Arkham.Target
 import Arkham.Tarot
 import Arkham.Text (FlavorText (..), FlavorTextEntry (..), FlavorTextModifier (..), toI18n)
-import Arkham.Tracing
 import Arkham.Window (defaultWindows)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Strict
-import OpenTelemetry.Trace.Monad (MonadTracer (..))
 
 data ChooseState = ChooseState
   { terminated :: Bool
@@ -61,11 +61,7 @@ newtype ChooseT m a = ChooseT {unChooseT :: StateT ChooseState (WriterT [UI Mess
     , MonadCatch
     , MonadThrow
     , MonadMask
-    , Tracing
     )
-
-instance MonadTracer m => MonadTracer (ChooseT m) where
-  getTracer = ChooseT $ lift $ lift getTracer
 
 instance HasGame m => HasGame (ChooseT m) where
   getGame = lift getGame
@@ -240,6 +236,11 @@ labeled' :: (HasI18n, ReverseQueue m) => Text -> QueueT Message m () -> ChooseT 
 labeled' label action = unterminated do
   msgs <- lift $ capture action
   tell [Label ("$" <> labelKey label) msgs]
+
+connectionLabeled' :: ReverseQueue m => LocationSymbol -> QueueT Message m () -> ChooseT m ()
+connectionLabeled' sym action = unterminated do
+  msgs <- lift $ capture action
+  tell [ConnectionLabel sym msgs]
 
 info' :: ReverseQueue m => FlavorTextBuilder () -> ChooseT m ()
 info' flavor = unterminated $ tell [Info $ buildFlavor flavor]
@@ -525,9 +526,10 @@ questionLabeledI label = modify $ \s -> s {Arkham.Message.Lifted.Choose.label = 
 questionLabeledCard :: (ReverseQueue m, HasCardCode a) => a -> ChooseT m ()
 questionLabeledCard a = modify $ \s -> s {Arkham.Message.Lifted.Choose.labelCardCode = Just (toCardCode a)}
 
--- | Attach a source to the question so the client highlights that entity (e.g.
--- the acting enemy during Hunter/Patrol/Warring movement). Honored by
--- 'chooseOneM' and 'chooseOrRunOneM'.
+{- | Attach a source to the question so the client highlights that entity (e.g.
+the acting enemy during Hunter/Patrol/Warring movement). Honored by
+'chooseOneM' and 'chooseOrRunOneM'.
+-}
 questionSourced :: (ReverseQueue m, Sourceable a) => a -> ChooseT m ()
 questionSourced a = modify $ \s -> s {Arkham.Message.Lifted.Choose.source = Just (toSource a)}
 
@@ -557,6 +559,30 @@ investigatorStoryWithChooseOneM' iid builder choices = do
   (_, choices') <- runChooseT choices
   pid <- getPlayer iid
   playerStoryWithChooseOne pid (buildFlavor builder) choices'
+
+wizardChoice'
+  :: (HasI18n, ReverseQueue m) => Text -> FlavorText -> QueueT Message m () -> m (WizardChoice Message)
+wizardChoice' label flavor action = do
+  messages <- capture action
+  pure $ WizardChoice ("$" <> labelKey label) flavor messages
+
+chooseOneWizard'
+  :: (HasI18n, ReverseQueue m)
+  => InvestigatorId
+  -> FlavorText
+  -> Text
+  -> Text
+  -> [WizardChoice Message]
+  -> m ()
+chooseOneWizard' iid flavor confirm back choices = do
+  pid <- getPlayer iid
+  push
+    $ Msg.Ask pid
+    $ ChooseOneWizard
+      flavor
+      choices
+      ("$" <> labelKey confirm)
+      ("$" <> labelKey back)
 
 playerStoryWithChooseOneM'
   :: ReverseQueue m => PlayerId -> FlavorTextBuilder () -> ChooseT m a -> m ()
@@ -617,3 +643,15 @@ chooseDamageEnemy iid source lmatcher ematcher n = do
     targets enemies $ assignEnemyDamage (nonAttack (Just iid) source n)
     when (ematcher == AnyEnemy) do
       for_ concealed \card -> targeting card $ push $ Msg.Flip iid GameSource (ConcealedCardTarget card.id)
+
+assignDamageOrHorror
+  :: (ReverseQueue m, Sourceable source) => InvestigatorId -> source -> Int -> Int -> m ()
+assignDamageOrHorror _ _ 0 0 = pure ()
+assignDamageOrHorror iid (toSource -> source) 0 horror = assignHorror iid source horror
+assignDamageOrHorror iid (toSource -> source) damage 0 = assignDamage iid source damage
+assignDamageOrHorror iid (toSource -> source) damage horror = do
+  canBeDamaged <- matches iid InvestigatorCanBeDamaged
+  when canBeDamaged do
+    chooseOneM iid $ withI18n $ unscoped do
+      countVar damage $ labeled' "takeDamage" $ assignDamage iid source damage
+      countVar horror $ labeled' "takeHorror" $ assignHorror iid source horror

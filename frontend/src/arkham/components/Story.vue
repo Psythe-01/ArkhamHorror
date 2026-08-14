@@ -110,6 +110,14 @@ const abilities = computed(() => {
     }, []);
 })
 
+// Story cards generally expose a single story ability. Let the card itself
+// select that unambiguous choice instead of requiring a second click on the
+// ability button. Target-label choices still take precedence.
+const directAction = computed(() => {
+  if (cardAction.value !== -1) return cardAction.value
+  return abilities.value.length === 1 ? abilities.value[0].index : -1
+})
+
 const civilians = computed(() => props.story.tokens[TokenType.Civilian])
 const storyTokens = computed(() => {
   const { Civilian, ...rest } = props.story.tokens
@@ -117,6 +125,7 @@ const storyTokens = computed(() => {
 })
 
 const hasPool = computed(() => Object.values(storyTokens.value).some((amount) => (amount ?? 0) > 0))
+const sealedChaosTokens = computed(() => props.story.sealedChaosTokens ?? [])
 </script>
 
 <template>
@@ -124,14 +133,17 @@ const hasPool = computed(() => Object.values(storyTokens.value).some((amount) =>
     <div class="story-card">
       <div class="image-container">
         <img :src="displayedImage"
-          :class="{'story--can-interact': cardAction !== -1, 'card--flipping': flipping }"
+          :class="{'story--can-interact': directAction !== -1, 'card--flipping': flipping }"
           :data-crossed-off="crossedOff"
           :data-checkmarks="JSON.stringify(checkmarks)"
           class="card story"
-          @click="$emit('choose', cardAction)"
+          @click="directAction !== -1 && $emit('choose', directAction)"
         />
         <div class="pool" v-if="hasPool">
           <TokenPool :tokens="storyTokens" />
+        </div>
+        <div class="sealed-tokens" v-if="sealedChaosTokens.length > 0">
+          <Token v-for="(sealedToken, index) in sealedChaosTokens" :key="index" :token="sealedToken" :playerId="playerId" :game="game" @choose="choose" />
         </div>
         <TokenPool :tokens="{ Civilian: civilians }" :overrides="{ Civilian: { class: 'civilians' } }" />
       </div>
@@ -218,6 +230,16 @@ const hasPool = computed(() => Object.values(storyTokens.value).some((amount) =>
   > .pool {
     grid-area: base;
     pointer-events: none;
+  }
+
+  /* Sealed tokens sit on the card, like an asset's, but stay clickable so a
+     "release the token sealed here" prompt can be answered from them. */
+  > .sealed-tokens {
+    grid-area: base;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
   }
 
   > .card {

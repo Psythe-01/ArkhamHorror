@@ -186,11 +186,13 @@ data WindowMatcher
   | EnemyAttacked Timing Who SourceMatcher EnemyMatcher
   | EnemyAttackedSuccessfully Timing Who SourceMatcher EnemyMatcher
   | EnemyEvadedSuccessfully Timing Who SourceMatcher EnemyMatcher
+  | EnemyWouldBeEvaded Timing Who EnemyMatcher
   | RevealChaosToken Timing Who ChaosTokenMatcher
   | RevealChaosTokensDuringSkillTest Timing Who SkillTestMatcher ChaosTokenMatcher
   | TokensWouldBeRemovedFromChaosBag Timing ChaosTokenMatcher
   | ResolvesChaosToken Timing Who ChaosTokenMatcher
   | ChaosTokenSealed Timing Who ChaosTokenMatcher
+  | ChaosTokenReleased Timing Who ChaosTokenMatcher
   | CancelChaosToken Timing Who ChaosTokenMatcher
   | IgnoreChaosToken Timing Who ChaosTokenMatcher
   | WouldRevealChaosToken Timing Who
@@ -200,6 +202,8 @@ data WindowMatcher
   | DiscardedFromDeck Timing Who SourceMatcher ExtendedCardMatcher
   | WouldDiscardFromHand Timing Who SourceMatcher
   | WouldDiscardFromDeck Timing Who SourceMatcher
+  | WouldDiscardTopOfEncounterDeck Timing Who SourceMatcher
+  | DiscardedTopOfEncounterDeckBatch Timing Who SourceMatcher
   | AssetHealed Timing DamageType AssetMatcher SourceMatcher
   | InvestigatorHealed Timing DamageType InvestigatorMatcher SourceMatcher
   | AssetWouldBeDiscarded Timing AssetMatcher
@@ -216,6 +220,7 @@ data WindowMatcher
   | WouldPlaceClueOnLocation Timing Who Where ValueMatcher
   | WouldAddChaosTokensToChaosBag Timing (Maybe Who) ValueMatcher ChaosTokenFace
   | PlacedCounter Timing Who SourceMatcher CounterMatcher ValueMatcher
+  | PlacedCounterOnInvestigator Timing InvestigatorMatcher SourceMatcher CounterMatcher ValueMatcher
   | PlacedCounterOnLocation Timing Where SourceMatcher CounterMatcher ValueMatcher
   | PlacedCounterOnEnemy Timing EnemyMatcher SourceMatcher CounterMatcher ValueMatcher
   | PlacedCounterOnAgenda Timing AgendaMatcher SourceMatcher CounterMatcher ValueMatcher
@@ -237,16 +242,18 @@ data WindowMatcher
   | RoundBegins Timing
   | RoundEnds Timing
   | DuringTurn Who
-  | -- | "You have an action to take." Matches the @NonFast@ action-taking window
-    -- (present on your real turn AND during a granted "as if it were your turn"
-    -- action), unlike @DuringTurn@ which means it is genuinely your turn. Action
-    -- abilities default to this so they remain usable with a granted action,
-    -- while "during your turn" Fast cards stay on @DuringTurn@. See #4894.
+  | {- | "You have an action to take." Matches the @NonFast@ action-taking window
+    (present on your real turn AND during a granted "as if it were your turn"
+    action), unlike @DuringTurn@ which means it is genuinely your turn. Action
+    abilities default to this so they remain usable with a granted action,
+    while "during your turn" Fast cards stay on @DuringTurn@. See #4894.
+    -}
     DuringYourAction Who
   | Enters Timing Who Where
-  | -- | Matches the @EnteringLocationWithEnemy@ window: the investigator entered
-    -- a location that had 1+ enemies at the moment of entry, evaluated then (not
-    -- re-checked after engagement). See #4813.
+  | {- | Matches the @EnteringLocationWithEnemy@ window: the investigator entered
+    a location that had 1+ enemies at the moment of entry, evaluated then (not
+    re-checked after engagement). See #4813.
+    -}
     EntersLocationWithEnemy Timing Who
   | Leaves Timing Who Where
   | WouldMove Timing Who SourceMatcher FromWhere ToWhere

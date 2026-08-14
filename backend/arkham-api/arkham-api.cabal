@@ -816,15 +816,6 @@ library
       Arkham.Agenda.Runner
       Arkham.Agenda.Sequence
       Arkham.Agenda.Types
-      Arkham.Ai.Decision
-      Arkham.Ai.Decks
-      Arkham.Ai.Focus
-      Arkham.Ai.Helpers
-      Arkham.Ai.Model
-      Arkham.Ai.Orphans
-      Arkham.Ai.Questions
-      Arkham.Ai.State
-      Arkham.Ai.Tags
       Arkham.Aspect
       Arkham.Aspect.Types
       Arkham.Asset
@@ -849,6 +840,7 @@ library
       Arkham.Asset.Assets.AliceLuxley
       Arkham.Asset.Assets.AliceLuxley2
       Arkham.Asset.Assets.AlienDevice
+      Arkham.Asset.Assets.AlienInstruments
       Arkham.Asset.Assets.AlienTabletPrehistoricWritings
       Arkham.Asset.Assets.AlikiZoniUperetriaTheMaidWithTheScarletSash
       Arkham.Asset.Assets.AltonOConnellGhostHunter
@@ -898,6 +890,7 @@ library
       Arkham.Asset.Assets.AriadnesTwine3
       Arkham.Asset.Assets.Armageddon
       Arkham.Asset.Assets.Armageddon4
+      Arkham.Asset.Assets.ArmoredCar
       Arkham.Asset.Assets.ArmorOfArdennes5
       Arkham.Asset.Assets.ArseneRenard
       Arkham.Asset.Assets.ArtisticInspiration
@@ -968,6 +961,7 @@ library
       Arkham.Asset.Assets.BountyContracts
       Arkham.Asset.Assets.BoxingGloves
       Arkham.Asset.Assets.BoxingGloves3
+      Arkham.Asset.Assets.BrainCase
       Arkham.Asset.Assets.BrandOfCthugha1
       Arkham.Asset.Assets.BrandOfCthugha4
       Arkham.Asset.Assets.BreathOfTheSleeper
@@ -1030,6 +1024,7 @@ library
       Arkham.Asset.Assets.CookiesCustom32
       Arkham.Asset.Assets.Cornered2
       Arkham.Asset.Assets.CornHuskDoll
+      Arkham.Asset.Assets.CorrosiveCloud
       Arkham.Asset.Assets.CosmicFlame
       Arkham.Asset.Assets.CosmicFlame5
       Arkham.Asset.Assets.Courage
@@ -1269,6 +1264,7 @@ library
       Arkham.Asset.Assets.GiftOfNodens5
       Arkham.Asset.Assets.GildedVolto
       Arkham.Asset.Assets.GirishKadakiaICPCPunjabDetective4
+      Arkham.Asset.Assets.GMen
       Arkham.Asset.Assets.GoodMoney
       Arkham.Asset.Assets.GoodMoneyTheQuoPart
       Arkham.Asset.Assets.GrandMeresCharm
@@ -2040,6 +2036,7 @@ library
       Arkham.Campaign.Campaigns
       Arkham.Campaign.Campaigns.BrethrenOfAsh
       Arkham.Campaign.Campaigns.EdgeOfTheEarth
+      Arkham.Campaign.Campaigns.EdgeOfTheEarth.Achievements
       Arkham.Campaign.Campaigns.GuardiansOfTheAbyss
       Arkham.Campaign.Campaigns.NightOfTheZealot
       Arkham.Campaign.Campaigns.NightOfTheZealot.Achievements
@@ -2052,16 +2049,21 @@ library
       Arkham.Campaign.Campaigns.TheCircleUndone
       Arkham.Campaign.Campaigns.TheCircleUndone.Achievements
       Arkham.Campaign.Campaigns.TheDreamEaters
+      Arkham.Campaign.Campaigns.TheDreamEaters.Achievements
       Arkham.Campaign.Campaigns.TheDrownedCity
+      Arkham.Campaign.Campaigns.TheDrownedCity.Achievements
       Arkham.Campaign.Campaigns.TheDunwichLegacy
       Arkham.Campaign.Campaigns.TheDunwichLegacy.Achievements
       Arkham.Campaign.Campaigns.TheFeastOfHemlockVale
+      Arkham.Campaign.Campaigns.TheFeastOfHemlockVale.Achievements
       Arkham.Campaign.Campaigns.TheForgottenAge
       Arkham.Campaign.Campaigns.TheForgottenAge.Achievements
       Arkham.Campaign.Campaigns.TheInnsmouthConspiracy
+      Arkham.Campaign.Campaigns.TheInnsmouthConspiracy.Achievements
       Arkham.Campaign.Campaigns.ThePathToCarcosa
       Arkham.Campaign.Campaigns.ThePathToCarcosa.Achievements
       Arkham.Campaign.Campaigns.TheScarletKeys
+      Arkham.Campaign.Campaigns.TheScarletKeys.Achievements
       Arkham.Campaign.Import.Lifted
       Arkham.Campaign.Option
       Arkham.Campaign.Runner
@@ -2095,7 +2097,6 @@ library
       Arkham.Campaigns.TheCircleUndone.Memento.Helpers
       Arkham.Campaigns.TheDreamEaters.CampaignSteps
       Arkham.Campaigns.TheDreamEaters.ChaosBag
-      Arkham.Campaigns.TheDreamEaters.FlavorText
       Arkham.Campaigns.TheDreamEaters.Helpers
       Arkham.Campaigns.TheDreamEaters.Import
       Arkham.Campaigns.TheDreamEaters.Key
@@ -2103,6 +2104,8 @@ library
       Arkham.Campaigns.TheDrownedCity.CampaignSteps
       Arkham.Campaigns.TheDrownedCity.ChaosBag
       Arkham.Campaigns.TheDrownedCity.Effects.StruggleForAir
+      Arkham.Campaigns.TheDrownedCity.Effects.WalkInFaithDoubts
+      Arkham.Campaigns.TheDrownedCity.Effects.WalkInFaithResolve
       Arkham.Campaigns.TheDrownedCity.Helpers
       Arkham.Campaigns.TheDrownedCity.Import
       Arkham.Campaigns.TheDrownedCity.Key
@@ -2648,11 +2651,14 @@ library
       Arkham.Enemy.Cards.MemoryOfATerribleDiscovery
       Arkham.Enemy.Cards.MiasmaticShadow
       Arkham.Enemy.Cards.MiGoAbductor
+      Arkham.Enemy.Cards.MiGoDestroyer
       Arkham.Enemy.Cards.MiGoDrone
       Arkham.Enemy.Cards.MiGoGeneral
       Arkham.Enemy.Cards.MiGoGuard
       Arkham.Enemy.Cards.MiGoHarvester
       Arkham.Enemy.Cards.MiGoMeddler
+      Arkham.Enemy.Cards.MiGoResearcher
+      Arkham.Enemy.Cards.MiGoScientist
       Arkham.Enemy.Cards.MimeticNemesisInfiltratorOfRealities
       Arkham.Enemy.Cards.MimeticNemesisOtherworldlySubjugator
       Arkham.Enemy.Cards.MindlessDancer
@@ -2741,6 +2747,7 @@ library
       Arkham.Enemy.Cards.ReanimatedDead
       Arkham.Enemy.Cards.ReawakenedElderThing
       Arkham.Enemy.Cards.RelentlessDarkYoung
+      Arkham.Enemy.Cards.ReplicatingAberration
       Arkham.Enemy.Cards.ReturnToHeretic_38
       Arkham.Enemy.Cards.ReturnToHeretic_39
       Arkham.Enemy.Cards.RiftSeeker
@@ -3624,9 +3631,13 @@ library
       Arkham.Helpers.Xp
       Arkham.History
       Arkham.History.Types
+      Arkham.Homebrew.CardRegistry
       Arkham.Homebrew.CircusExMortis.Acts.ForestOfIllusion
       Arkham.Homebrew.CircusExMortis.Acts.OutAndAway
-      Arkham.Homebrew.CircusExMortis.Acts.RatsInACage
+      Arkham.Homebrew.CircusExMortis.Acts.RatsInACageInTheHorsesEye
+      Arkham.Homebrew.CircusExMortis.Acts.RatsInACageInTheLionsDen
+      Arkham.Homebrew.CircusExMortis.Acts.RatsInACageInTheMakeupCase
+      Arkham.Homebrew.CircusExMortis.Acts.RatsInACageInThePrizeDisplay
       Arkham.Homebrew.CircusExMortis.Acts.SmokeAndMirrors
       Arkham.Homebrew.CircusExMortis.Agendas.BloodMoon
       Arkham.Homebrew.CircusExMortis.Agendas.HouseOfHorrors
@@ -3634,8 +3645,10 @@ library
       Arkham.Homebrew.CircusExMortis.Agendas.SavageNature
       Arkham.Homebrew.CircusExMortis.Agendas.TheTrueFace
       Arkham.Homebrew.CircusExMortis.Assets.IllusoryLocus
+      Arkham.Homebrew.CircusExMortis.Assets.TerrifiedCaptives
       Arkham.Homebrew.CircusExMortis.Campaign
       Arkham.Homebrew.CircusExMortis.CampaignSteps
+      Arkham.Homebrew.CircusExMortis.CardDefEntries
       Arkham.Homebrew.CircusExMortis.CardDefs.Acts
       Arkham.Homebrew.CircusExMortis.CardDefs.Agendas
       Arkham.Homebrew.CircusExMortis.CardDefs.Assets
@@ -3644,6 +3657,7 @@ library
       Arkham.Homebrew.CircusExMortis.CardDefs.Skills
       Arkham.Homebrew.CircusExMortis.CardDefs.Stories
       Arkham.Homebrew.CircusExMortis.CardDefs.Treacheries
+      Arkham.Homebrew.CircusExMortis.CardEntries
       Arkham.Homebrew.CircusExMortis.ChaosBag
       Arkham.Homebrew.CircusExMortis.Content
       Arkham.Homebrew.CircusExMortis.Defs
@@ -3700,22 +3714,111 @@ library
       Arkham.Homebrew.CircusExMortis.Traits
       Arkham.Homebrew.CircusExMortis.Treacheries.EndlessSpawn
       Arkham.Homebrew.CircusExMortis.Treacheries.FeralImpulses
+      Arkham.Homebrew.CircusExMortis.Treacheries.HypnoticGlamour
+      Arkham.Homebrew.CircusExMortis.Treacheries.LostAllControl
       Arkham.Homebrew.CircusExMortis.Treacheries.LunarInfluence
       Arkham.Homebrew.CircusExMortis.Treacheries.MaddeningSpectacle
       Arkham.Homebrew.CircusExMortis.Treacheries.MilkOfShubNiggurath
       Arkham.Homebrew.CircusExMortis.Treacheries.MoonlightIllusion
       Arkham.Homebrew.CircusExMortis.Treacheries.OminousMoonlight
+      Arkham.Homebrew.CircusExMortis.Treacheries.PhantasmalDeception
+      Arkham.Homebrew.CircusExMortis.Treacheries.PrimordialEvils
       Arkham.Homebrew.CircusExMortis.Treacheries.QuickerThanTheEye
       Arkham.Homebrew.CircusExMortis.Treacheries.RecklessStunt
+      Arkham.Homebrew.CircusExMortis.Treacheries.WildHysteria
       Arkham.Homebrew.ContentEntries
       Arkham.Homebrew.DarkMatter.Actions
+      Arkham.Homebrew.DarkMatter.Acts.ArtificalInsanity
+      Arkham.Homebrew.DarkMatter.Acts.Awakening
+      Arkham.Homebrew.DarkMatter.Acts.Destabilization
+      Arkham.Homebrew.DarkMatter.Acts.ElbrusStation
+      Arkham.Homebrew.DarkMatter.Acts.EndTimes
+      Arkham.Homebrew.DarkMatter.Acts.EventHorizon
+      Arkham.Homebrew.DarkMatter.Acts.FacingYourFears
+      Arkham.Homebrew.DarkMatter.Acts.FirstEncounter
+      Arkham.Homebrew.DarkMatter.Acts.InLostCarcosa
+      Arkham.Homebrew.DarkMatter.Acts.IsAnyoneHome
+      Arkham.Homebrew.DarkMatter.Acts.Psychoanalysis
+      Arkham.Homebrew.DarkMatter.Acts.PublicSchool187V10
+      Arkham.Homebrew.DarkMatter.Acts.PublicSchool187V20
+      Arkham.Homebrew.DarkMatter.Acts.PublicSchool187V30
+      Arkham.Homebrew.DarkMatter.Acts.QuantumZeno
+      Arkham.Homebrew.DarkMatter.Acts.Reconnected
+      Arkham.Homebrew.DarkMatter.Acts.SaveOurSouls
+      Arkham.Homebrew.DarkMatter.Acts.SecretsOfTheMind
+      Arkham.Homebrew.DarkMatter.Acts.TassildasAwakening
+      Arkham.Homebrew.DarkMatter.Acts.TheHeirToCarcosa
+      Arkham.Homebrew.DarkMatter.Acts.TheManInThePallidMask
+      Arkham.Homebrew.DarkMatter.Acts.TheShadowOfEarth
+      Arkham.Homebrew.DarkMatter.Acts.TheUnspeakableTruth
+      Arkham.Homebrew.DarkMatter.Acts.Unmasked
+      Arkham.Homebrew.DarkMatter.Agendas.AgainstTheSun
+      Arkham.Homebrew.DarkMatter.Agendas.ANightmare
+      Arkham.Homebrew.DarkMatter.Agendas.DarkMatterAgenda
+      Arkham.Homebrew.DarkMatter.Agendas.EmergencyProcedure
+      Arkham.Homebrew.DarkMatter.Agendas.FigmentOfYourImagination
+      Arkham.Homebrew.DarkMatter.Agendas.FlightOfTheByakhees
+      Arkham.Homebrew.DarkMatter.Agendas.It
+      Arkham.Homebrew.DarkMatter.Agendas.ItsWeirdAndPissedOff
+      Arkham.Homebrew.DarkMatter.Agendas.JourneyAcrossSpace
+      Arkham.Homebrew.DarkMatter.Agendas.MoonsOfSaturn
+      Arkham.Homebrew.DarkMatter.Agendas.OutOfMind
+      Arkham.Homebrew.DarkMatter.Agendas.RedSun
+      Arkham.Homebrew.DarkMatter.Agendas.RiseOfTheMachines
+      Arkham.Homebrew.DarkMatter.Agendas.ScreamOfTheDead
+      Arkham.Homebrew.DarkMatter.Agendas.ShallDryAndDie
+      Arkham.Homebrew.DarkMatter.Agendas.SignsFromAldebaran
+      Arkham.Homebrew.DarkMatter.Agendas.Supernova
+      Arkham.Homebrew.DarkMatter.Agendas.TheGhostShip
+      Arkham.Homebrew.DarkMatter.Agendas.TheNostalgiaII
+      Arkham.Homebrew.DarkMatter.Agendas.TheQuantumMaelstrom_091
+      Arkham.Homebrew.DarkMatter.Agendas.TheQuantumMaelstrom_092
+      Arkham.Homebrew.DarkMatter.Agendas.TheQuantumMaelstrom_093
+      Arkham.Homebrew.DarkMatter.Agendas.TheShadowsLengthen
+      Arkham.Homebrew.DarkMatter.Agendas.TheThingFromEarth
+      Arkham.Homebrew.DarkMatter.Agendas.TheThirdAct
+      Arkham.Homebrew.DarkMatter.Assets.AdamTanner
+      Arkham.Homebrew.DarkMatter.Assets.Alma
+      Arkham.Homebrew.DarkMatter.Assets.ArNO
+      Arkham.Homebrew.DarkMatter.Assets.BottleOfWhispers
+      Arkham.Homebrew.DarkMatter.Assets.BrainCylinder089
+      Arkham.Homebrew.DarkMatter.Assets.BrainCylinder114
+      Arkham.Homebrew.DarkMatter.Assets.BrainCylinder367
+      Arkham.Homebrew.DarkMatter.Assets.CaptainBurr
+      Arkham.Homebrew.DarkMatter.Assets.David
+      Arkham.Homebrew.DarkMatter.Assets.DirectorCixin
+      Arkham.Homebrew.DarkMatter.Assets.DoctorFeng
+      Arkham.Homebrew.DarkMatter.Assets.ErwinSimmonsFading
+      Arkham.Homebrew.DarkMatter.Assets.ErwinSimmonsQuantumPhysicist
+      Arkham.Homebrew.DarkMatter.Assets.EvaSuit
+      Arkham.Homebrew.DarkMatter.Assets.HeirToCarcosa
+      Arkham.Homebrew.DarkMatter.Assets.K11SurveyUnit
       Arkham.Homebrew.DarkMatter.Assets.K2PS187100Functionality
       Arkham.Homebrew.DarkMatter.Assets.K2PS18725Functionality
       Arkham.Homebrew.DarkMatter.Assets.K2PS18750Functionality
       Arkham.Homebrew.DarkMatter.Assets.K2PS18775Functionality
+      Arkham.Homebrew.DarkMatter.Assets.LastHope
+      Arkham.Homebrew.DarkMatter.Assets.LtArcherMichaels
       Arkham.Homebrew.DarkMatter.Assets.Maja
+      Arkham.Homebrew.DarkMatter.Assets.MedicalFoam
+      Arkham.Homebrew.DarkMatter.Assets.MiGoCollector
+      Arkham.Homebrew.DarkMatter.Assets.MindMachineInterface
+      Arkham.Homebrew.DarkMatter.Assets.MUD12Mudbug
+      Arkham.Homebrew.DarkMatter.Assets.ProjectOrigami
+      Arkham.Homebrew.DarkMatter.Assets.RadiationTablets
+      Arkham.Homebrew.DarkMatter.Assets.RepairingTheThreshold
+      Arkham.Homebrew.DarkMatter.Assets.ShieldingDevice
+      Arkham.Homebrew.DarkMatter.Assets.Sophie
+      Arkham.Homebrew.DarkMatter.Assets.SpaceArtillery
+      Arkham.Homebrew.DarkMatter.Assets.StasisCube
+      Arkham.Homebrew.DarkMatter.Assets.ThePallidMask
+      Arkham.Homebrew.DarkMatter.Assets.Tilde
+      Arkham.Homebrew.DarkMatter.Assets.UniversalArchives
+      Arkham.Homebrew.DarkMatter.Assets.VirtualAccessKey
+      Arkham.Homebrew.DarkMatter.Assets.William
       Arkham.Homebrew.DarkMatter.Campaign
       Arkham.Homebrew.DarkMatter.CampaignSteps
+      Arkham.Homebrew.DarkMatter.CardDefEntries
       Arkham.Homebrew.DarkMatter.CardDefs.Acts
       Arkham.Homebrew.DarkMatter.CardDefs.Agendas
       Arkham.Homebrew.DarkMatter.CardDefs.Assets
@@ -3723,17 +3826,126 @@ library
       Arkham.Homebrew.DarkMatter.CardDefs.Locations
       Arkham.Homebrew.DarkMatter.CardDefs.Stories
       Arkham.Homebrew.DarkMatter.CardDefs.Treacheries
+      Arkham.Homebrew.DarkMatter.CardEntries
       Arkham.Homebrew.DarkMatter.ChaosBag
       Arkham.Homebrew.DarkMatter.Content
       Arkham.Homebrew.DarkMatter.Defs
+      Arkham.Homebrew.DarkMatter.Enemies.CaveDweller
+      Arkham.Homebrew.DarkMatter.Enemies.CorruptedMachine
+      Arkham.Homebrew.DarkMatter.Enemies.CyberCultist
+      Arkham.Homebrew.DarkMatter.Enemies.Cybervirus
+      Arkham.Homebrew.DarkMatter.Enemies.DaemonOfNis
+      Arkham.Homebrew.DarkMatter.Enemies.DomaagTeel
+      Arkham.Homebrew.DarkMatter.Enemies.Exoroid
+      Arkham.Homebrew.DarkMatter.Enemies.GlitchInTheSystem
+      Arkham.Homebrew.DarkMatter.Enemies.Haita
+      Arkham.Homebrew.DarkMatter.Enemies.HoundOfTindalos
+      Arkham.Homebrew.DarkMatter.Enemies.Jv7Hyades
+      Arkham.Homebrew.DarkMatter.Enemies.Lr02Hali
+      Arkham.Homebrew.DarkMatter.Enemies.ManifestedWhispers
+      Arkham.Homebrew.DarkMatter.Enemies.MartianCrab
+      Arkham.Homebrew.DarkMatter.Enemies.MiGoScientist
+      Arkham.Homebrew.DarkMatter.Enemies.MiGoSentinel
+      Arkham.Homebrew.DarkMatter.Enemies.MiGoStabilizer
+      Arkham.Homebrew.DarkMatter.Enemies.Mimic
+      Arkham.Homebrew.DarkMatter.Enemies.Parasite
+      Arkham.Homebrew.DarkMatter.Enemies.QuantumPhantom
+      Arkham.Homebrew.DarkMatter.Enemies.Rats
+      Arkham.Homebrew.DarkMatter.Enemies.ShadowOfThoughts
+      Arkham.Homebrew.DarkMatter.Enemies.ShamblerFromTheStars
+      Arkham.Homebrew.DarkMatter.Enemies.SophisticSpires
+      Arkham.Homebrew.DarkMatter.Enemies.SpacePirates
+      Arkham.Homebrew.DarkMatter.Enemies.SpiritOfThan
       Arkham.Homebrew.DarkMatter.Enemies.StalkingByakhee
       Arkham.Homebrew.DarkMatter.Enemies.SystemBug
+      Arkham.Homebrew.DarkMatter.Enemies.Tassilda
+      Arkham.Homebrew.DarkMatter.Enemies.TatteredCurtains
       Arkham.Homebrew.DarkMatter.Enemies.TheBOOGEYMAN
+      Arkham.Homebrew.DarkMatter.Enemies.TheEntity
       Arkham.Homebrew.DarkMatter.Enemies.TheFeasterFromAfar
+      Arkham.Homebrew.DarkMatter.Enemies.TheGreys
+      Arkham.Homebrew.DarkMatter.Enemies.TheStranger
+      Arkham.Homebrew.DarkMatter.Enemies.UplA21Demhe
       Arkham.Homebrew.DarkMatter.Enemies.ViciousByakhee
+      Arkham.Homebrew.DarkMatter.Enemies.VirtualByakhee
+      Arkham.Homebrew.DarkMatter.Enemies.VoidByakhee
+      Arkham.Homebrew.DarkMatter.Enemies.YellowMists
+      Arkham.Homebrew.DarkMatter.Enemies.YithianGuard
+      Arkham.Homebrew.DarkMatter.Enemies.YourOtherSelf
       Arkham.Homebrew.DarkMatter.Helpers
       Arkham.Homebrew.DarkMatter.Import
       Arkham.Homebrew.DarkMatter.Key
+      Arkham.Homebrew.DarkMatter.Locations.AbandonedLander
+      Arkham.Homebrew.DarkMatter.Locations.AdriftInSpace
+      Arkham.Homebrew.DarkMatter.Locations.AHidingPlace
+      Arkham.Homebrew.DarkMatter.Locations.Airlocks
+      Arkham.Homebrew.DarkMatter.Locations.AMutiny
+      Arkham.Homebrew.DarkMatter.Locations.AnAccident
+      Arkham.Homebrew.DarkMatter.Locations.BiologyLab
+      Arkham.Homebrew.DarkMatter.Locations.BottomlessPit
+      Arkham.Homebrew.DarkMatter.Locations.BrainStorage
+      Arkham.Homebrew.DarkMatter.Locations.Cafeteria
+      Arkham.Homebrew.DarkMatter.Locations.CargoHold
+      Arkham.Homebrew.DarkMatter.Locations.CityOfCats
+      Arkham.Homebrew.DarkMatter.Locations.ClassroomK2
+      Arkham.Homebrew.DarkMatter.Locations.ColdWastes
+      Arkham.Homebrew.DarkMatter.Locations.Communicator
+      Arkham.Homebrew.DarkMatter.Locations.CrewQuarters
+      Arkham.Homebrew.DarkMatter.Locations.CryosleepQuarters
+      Arkham.Homebrew.DarkMatter.Locations.CrystalPeak
+      Arkham.Homebrew.DarkMatter.Locations.CyclopeanCaverns
+      Arkham.Homebrew.DarkMatter.Locations.DerelictShip
+      Arkham.Homebrew.DarkMatter.Locations.DreamDiagnostics
+      Arkham.Homebrew.DarkMatter.Locations.Earth
+      Arkham.Homebrew.DarkMatter.Locations.EngineRoomInTheShadowOfEarth
+      Arkham.Homebrew.DarkMatter.Locations.EngineRoomTatterdemalion
+      Arkham.Homebrew.DarkMatter.Locations.EntranceHall
+      Arkham.Homebrew.DarkMatter.Locations.EntranceTunnel
+      Arkham.Homebrew.DarkMatter.Locations.EscapePodBay
+      Arkham.Homebrew.DarkMatter.Locations.FeverDream
+      Arkham.Homebrew.DarkMatter.Locations.FlightDeck
+      Arkham.Homebrew.DarkMatter.Locations.GardensOfThothut
+      Arkham.Homebrew.DarkMatter.Locations.GrandBallroom
+      Arkham.Homebrew.DarkMatter.Locations.Gymnasium
+      Arkham.Homebrew.DarkMatter.Locations.HiddenPassage
+      Arkham.Homebrew.DarkMatter.Locations.Hope
+      Arkham.Homebrew.DarkMatter.Locations.Hydroponics
+      Arkham.Homebrew.DarkMatter.Locations.IceCavity
+      Arkham.Homebrew.DarkMatter.Locations.IceSpires
+      Arkham.Homebrew.DarkMatter.Locations.ImpassableRavine
+      Arkham.Homebrew.DarkMatter.Locations.InfirmaryInTheShadowOfEarth
+      Arkham.Homebrew.DarkMatter.Locations.InfirmaryTatterdemalion
+      Arkham.Homebrew.DarkMatter.Locations.LabyrinthsOfTasylock
+      Arkham.Homebrew.DarkMatter.Locations.LandingCraft
+      Arkham.Homebrew.DarkMatter.Locations.Library
+      Arkham.Homebrew.DarkMatter.Locations.MainFacility
+      Arkham.Homebrew.DarkMatter.Locations.MartianRuins
+      Arkham.Homebrew.DarkMatter.Locations.MemoryScanner
+      Arkham.Homebrew.DarkMatter.Locations.MessHall
+      Arkham.Homebrew.DarkMatter.Locations.MoonbaseLaboratory
+      Arkham.Homebrew.DarkMatter.Locations.MountSinai
+      Arkham.Homebrew.DarkMatter.Locations.NewBrooklyn
+      Arkham.Homebrew.DarkMatter.Locations.OlympusTelescope
+      Arkham.Homebrew.DarkMatter.Locations.OmniTransmitters
+      Arkham.Homebrew.DarkMatter.Locations.PalaceGates
+      Arkham.Homebrew.DarkMatter.Locations.QCrystalMines
+      Arkham.Homebrew.DarkMatter.Locations.RealitySimulator
+      Arkham.Homebrew.DarkMatter.Locations.SchoolGrounds
+      Arkham.Homebrew.DarkMatter.Locations.SchrodGenerators
+      Arkham.Homebrew.DarkMatter.Locations.ShipMainframe
+      Arkham.Homebrew.DarkMatter.Locations.ShipsBridge
+      Arkham.Homebrew.DarkMatter.Locations.Sol
+      Arkham.Homebrew.DarkMatter.Locations.SpiralStaircase
+      Arkham.Homebrew.DarkMatter.Locations.StalagmiteForest
+      Arkham.Homebrew.DarkMatter.Locations.SurfaceOfFragment
+      Arkham.Homebrew.DarkMatter.Locations.Telecoms
+      Arkham.Homebrew.DarkMatter.Locations.TheCassilda
+      Arkham.Homebrew.DarkMatter.Locations.TheTatterdemalionLocation
+      Arkham.Homebrew.DarkMatter.Locations.TheYellowThrone
+      Arkham.Homebrew.DarkMatter.Locations.ThresholdOfYuggoth
+      Arkham.Homebrew.DarkMatter.Locations.VentilationShaft
+      Arkham.Homebrew.DarkMatter.Locations.Yuggoth
+      Arkham.Homebrew.DarkMatter.MotionScanning
       Arkham.Homebrew.DarkMatter.ScenarioDeckKeys
       Arkham.Homebrew.DarkMatter.Scenarios.ElectricNightmare
       Arkham.Homebrew.DarkMatter.Scenarios.FragmentOfCarcosa
@@ -3744,18 +3956,112 @@ library
       Arkham.Homebrew.DarkMatter.Scenarios.TheMachineInYellow
       Arkham.Homebrew.DarkMatter.Scenarios.TheTatterdemalion
       Arkham.Homebrew.DarkMatter.Sets
+      Arkham.Homebrew.DarkMatter.Stories.ArrivalOfTheKing
+      Arkham.Homebrew.DarkMatter.Stories.Delights
+      Arkham.Homebrew.DarkMatter.Stories.EvidenceAdamTanner
+      Arkham.Homebrew.DarkMatter.Stories.EvidenceCaptainBurr
+      Arkham.Homebrew.DarkMatter.Stories.EvidenceDoctorFeng
+      Arkham.Homebrew.DarkMatter.Stories.EvidenceLtArcherMichaels
+      Arkham.Homebrew.DarkMatter.Stories.EvidenceMUD12Mudbug
+      Arkham.Homebrew.DarkMatter.Stories.EvidenceSophie
+      Arkham.Homebrew.DarkMatter.Stories.FinalDestination
+      Arkham.Homebrew.DarkMatter.Stories.ForYouAlone
+      Arkham.Homebrew.DarkMatter.Stories.IntoTheArchives
+      Arkham.Homebrew.DarkMatter.Stories.K2PS187CyberneticBrains
+      Arkham.Homebrew.DarkMatter.Stories.LostExpedition
+      Arkham.Homebrew.DarkMatter.Stories.Reintegrated_062
+      Arkham.Homebrew.DarkMatter.Stories.Reintegrated_063
+      Arkham.Homebrew.DarkMatter.Stories.Reintegrated_064
+      Arkham.Homebrew.DarkMatter.Stories.Reintegrated_065
+      Arkham.Homebrew.DarkMatter.Stories.RitualOfTheSun
+      Arkham.Homebrew.DarkMatter.Stories.StrangeIsTheNight
+      Arkham.Homebrew.DarkMatter.Stories.TheCultist
+      Arkham.Homebrew.DarkMatter.Stories.TheMiner
+      Arkham.Homebrew.DarkMatter.Stories.TheTeacher
+      Arkham.Homebrew.DarkMatter.Stories.WhatTypeOfShipIsThis
+      Arkham.Homebrew.DarkMatter.Stories.WhoAmI
+      Arkham.Homebrew.DarkMatter.Stories.WithoutATrace
       Arkham.Homebrew.DarkMatter.Traits
+      Arkham.Homebrew.DarkMatter.Treacheries.AlienAid
+      Arkham.Homebrew.DarkMatter.Treacheries.Alienation
+      Arkham.Homebrew.DarkMatter.Treacheries.AllSeeingEye
       Arkham.Homebrew.DarkMatter.Treacheries.Anachronism
+      Arkham.Homebrew.DarkMatter.Treacheries.AnothersWoe
+      Arkham.Homebrew.DarkMatter.Treacheries.ArtificialGravityMalfunction
+      Arkham.Homebrew.DarkMatter.Treacheries.BrokenReality
+      Arkham.Homebrew.DarkMatter.Treacheries.CabinPressure
+      Arkham.Homebrew.DarkMatter.Treacheries.CallOfTheVoid
+      Arkham.Homebrew.DarkMatter.Treacheries.CaveCollapse
+      Arkham.Homebrew.DarkMatter.Treacheries.ChosenByHim
+      Arkham.Homebrew.DarkMatter.Treacheries.CloseEncounters
       Arkham.Homebrew.DarkMatter.Treacheries.ColdVacuum
+      Arkham.Homebrew.DarkMatter.Treacheries.ComeCLOSER
+      Arkham.Homebrew.DarkMatter.Treacheries.Contamination
+      Arkham.Homebrew.DarkMatter.Treacheries.CoolantLeak
+      Arkham.Homebrew.DarkMatter.Treacheries.DarkReflectionsMalingerer
+      Arkham.Homebrew.DarkMatter.Treacheries.DarkReflectionsMurderer
+      Arkham.Homebrew.DarkMatter.Treacheries.DarkReflectionsSycophant
+      Arkham.Homebrew.DarkMatter.Treacheries.DarkReflectionsZealot
+      Arkham.Homebrew.DarkMatter.Treacheries.Decoherence
+      Arkham.Homebrew.DarkMatter.Treacheries.Decompression
+      Arkham.Homebrew.DarkMatter.Treacheries.DelusionalMadness
+      Arkham.Homebrew.DarkMatter.Treacheries.Desync
+      Arkham.Homebrew.DarkMatter.Treacheries.DigitalCorrosion
+      Arkham.Homebrew.DarkMatter.Treacheries.Duplication
+      Arkham.Homebrew.DarkMatter.Treacheries.EchoesOfTassildaMatter
+      Arkham.Homebrew.DarkMatter.Treacheries.EchoesOfTassildaMind
+      Arkham.Homebrew.DarkMatter.Treacheries.ElectricSurge
+      Arkham.Homebrew.DarkMatter.Treacheries.Entangled
+      Arkham.Homebrew.DarkMatter.Treacheries.ExtraterrestrialAssault
+      Arkham.Homebrew.DarkMatter.Treacheries.FathomlessRegrets
+      Arkham.Homebrew.DarkMatter.Treacheries.ForbiddingPromises
+      Arkham.Homebrew.DarkMatter.Treacheries.FromTheDark
       Arkham.Homebrew.DarkMatter.Treacheries.FutureEvils
       Arkham.Homebrew.DarkMatter.Treacheries.GrimFuture
+      Arkham.Homebrew.DarkMatter.Treacheries.HallucinatoryHolograms
+      Arkham.Homebrew.DarkMatter.Treacheries.HastursDomain
       Arkham.Homebrew.DarkMatter.Treacheries.HauntingPast
+      Arkham.Homebrew.DarkMatter.Treacheries.HighRadiationLevels
+      Arkham.Homebrew.DarkMatter.Treacheries.Hopeless
+      Arkham.Homebrew.DarkMatter.Treacheries.Incomprehensible
+      Arkham.Homebrew.DarkMatter.Treacheries.Infection
+      Arkham.Homebrew.DarkMatter.Treacheries.InnocentMishap
+      Arkham.Homebrew.DarkMatter.Treacheries.IrresistibleTruths
+      Arkham.Homebrew.DarkMatter.Treacheries.LostInTranslation
+      Arkham.Homebrew.DarkMatter.Treacheries.MadnessOfCarcosa
       Arkham.Homebrew.DarkMatter.Treacheries.Micrometeoroid
+      Arkham.Homebrew.DarkMatter.Treacheries.MiGoExperiments
+      Arkham.Homebrew.DarkMatter.Treacheries.NonEuclideanGeometry
+      Arkham.Homebrew.DarkMatter.Treacheries.PaleBlueDot
+      Arkham.Homebrew.DarkMatter.Treacheries.ParadoxicalThreat
+      Arkham.Homebrew.DarkMatter.Treacheries.PerfectImitation
+      Arkham.Homebrew.DarkMatter.Treacheries.PersistenceOfMemory
+      Arkham.Homebrew.DarkMatter.Treacheries.PerspectiveSwitch
+      Arkham.Homebrew.DarkMatter.Treacheries.PredictiveAlgorithm
+      Arkham.Homebrew.DarkMatter.Treacheries.QuantumCollapse
       Arkham.Homebrew.DarkMatter.Treacheries.RadiantCrown
+      Arkham.Homebrew.DarkMatter.Treacheries.RadioactiveDecay
+      Arkham.Homebrew.DarkMatter.Treacheries.RememberME
+      Arkham.Homebrew.DarkMatter.Treacheries.ReminiscenceCovenant
+      Arkham.Homebrew.DarkMatter.Treacheries.ReminiscencePledge
+      Arkham.Homebrew.DarkMatter.Treacheries.ReminiscenceSecrets
+      Arkham.Homebrew.DarkMatter.Treacheries.SceneShifting
+      Arkham.Homebrew.DarkMatter.Treacheries.Scrambled
+      Arkham.Homebrew.DarkMatter.Treacheries.SimulationDiscrepancy
+      Arkham.Homebrew.DarkMatter.Treacheries.SolarEclipse
       Arkham.Homebrew.DarkMatter.Treacheries.SolarFlare
+      Arkham.Homebrew.DarkMatter.Treacheries.SongOfYourSoul
+      Arkham.Homebrew.DarkMatter.Treacheries.Surprise
+      Arkham.Homebrew.DarkMatter.Treacheries.TheColorsOfSpace
+      Arkham.Homebrew.DarkMatter.Treacheries.TheDarkForest
+      Arkham.Homebrew.DarkMatter.Treacheries.TheStarsWereRight
+      Arkham.Homebrew.DarkMatter.Treacheries.ToxicPits
+      Arkham.Homebrew.DarkMatter.Treacheries.UnstableDimension
       Arkham.Homebrew.Defs
       Arkham.Homebrew.DefsBase
       Arkham.Homebrew.DefsEntries
+      Arkham.Homebrew.Generate
+      Arkham.Homebrew.Import
       Arkham.Homebrew.Registry
       Arkham.Homebrew.TH
       Arkham.Homebrew.TokenDefs
@@ -3911,6 +4217,8 @@ library
       Arkham.Location.Cards.AbandonedShack
       Arkham.Location.Cards.AbandonedSite
       Arkham.Location.Cards.AbandonedWarehouse
+      Arkham.Location.Cards.AbandonedWindmill
+      Arkham.Location.Cards.Abbatoir
       Arkham.Location.Cards.AbbeyChurch
       Arkham.Location.Cards.AbbeyTowerSpiresForbidden
       Arkham.Location.Cards.AbbeyTowerThePathIsOpen
@@ -4220,11 +4528,11 @@ library
       Arkham.Location.Cards.Dormitories_MiskatonicUniversity
       Arkham.Location.Cards.DownstairsDoorwayDen
       Arkham.Location.Cards.DownstairsDoorwayParlor
-      Arkham.Location.Cards.Downtown
       Arkham.Location.Cards.DowntownArkhamAsylum
       Arkham.Location.Cards.DowntownArkhamSanatorium
       Arkham.Location.Cards.DowntownFirstBankOfArkham
       Arkham.Location.Cards.DowntownFirstBankOfArkham_Arkham
+      Arkham.Location.Cards.DowntownRuined
       Arkham.Location.Cards.DreamersRest
       Arkham.Location.Cards.DreamGatePointlessReality
       Arkham.Location.Cards.DreamGateWondrousJourney
@@ -4246,7 +4554,7 @@ library
       Arkham.Location.Cards.Easttown
       Arkham.Location.Cards.Easttown_Arkham
       Arkham.Location.Cards.EasttownArkhamPoliceStation
-      Arkham.Location.Cards.EasttownTheDrownedCity
+      Arkham.Location.Cards.EasttownRuined
       Arkham.Location.Cards.EerieGlade
       Arkham.Location.Cards.ElderChamber
       Arkham.Location.Cards.EldritchGate
@@ -4533,6 +4841,7 @@ library
       Arkham.Location.Cards.LuminousTunnels
       Arkham.Location.Cards.MagneticSpires
       Arkham.Location.Cards.MainPath
+      Arkham.Location.Cards.MainStreet
       Arkham.Location.Cards.MapRoom
       Arkham.Location.Cards.MarrakeshRailwayStation
       Arkham.Location.Cards.MarrakeshRailwayStationAbandoned
@@ -4563,7 +4872,7 @@ library
       Arkham.Location.Cards.MiskatonicUniversityPast
       Arkham.Location.Cards.MiskatonicUniversityPresent
       Arkham.Location.Cards.MiskatonicUniversityQuietCampus
-      Arkham.Location.Cards.MiskatonicUniversityTheDrownedCity
+      Arkham.Location.Cards.MiskatonicUniversityRuined
       Arkham.Location.Cards.MistFilledCaverns
       Arkham.Location.Cards.MistPylon_174
       Arkham.Location.Cards.MistPylon_175
@@ -4611,7 +4920,7 @@ library
       Arkham.Location.Cards.NileRiver
       Arkham.Location.Cards.Northside
       Arkham.Location.Cards.Northside_Arkham
-      Arkham.Location.Cards.NorthsideTheDrownedCity
+      Arkham.Location.Cards.NorthsideRuined
       Arkham.Location.Cards.NorthsideTrainStation
       Arkham.Location.Cards.NorthTower_287
       Arkham.Location.Cards.NorthTower_288
@@ -4622,11 +4931,13 @@ library
       Arkham.Location.Cards.Office
       Arkham.Location.Cards.OfficeMurderAtTheExcelsiorHotel
       Arkham.Location.Cards.OfficeSpectral
+      Arkham.Location.Cards.OldBurialHill
       Arkham.Location.Cards.OMalleysWatchShop
       Arkham.Location.Cards.OnyxGates
       Arkham.Location.Cards.OnyxGuardians
       Arkham.Location.Cards.OozyLakebed
       Arkham.Location.Cards.OpenCave
+      Arkham.Location.Cards.OpenSky
       Arkham.Location.Cards.OpenWater10593b
       Arkham.Location.Cards.OpenWater10594b
       Arkham.Location.Cards.OpenWater10595b
@@ -4772,7 +5083,7 @@ library
       Arkham.Location.Cards.Rivertown_292
       Arkham.Location.Cards.Rivertown_293
       Arkham.Location.Cards.RivertownAbandonedWarehouse
-      Arkham.Location.Cards.RivertownTheDrownedCity
+      Arkham.Location.Cards.RivertownRuined
       Arkham.Location.Cards.RiverviewTheatre
       Arkham.Location.Cards.RlyehStreets
       Arkham.Location.Cards.RockyCrags
@@ -4873,12 +5184,12 @@ library
       Arkham.Location.Cards.SnowGraves
       Arkham.Location.Cards.SouthChurch_298
       Arkham.Location.Cards.SouthChurch_299
-      Arkham.Location.Cards.Southside
       Arkham.Location.Cards.Southside_294
       Arkham.Location.Cards.Southside_295
       Arkham.Location.Cards.Southside_Arkham
       Arkham.Location.Cards.SouthsideHistoricalSociety
       Arkham.Location.Cards.SouthsideMasBoardingHouse
+      Arkham.Location.Cards.SouthsideRuined
       Arkham.Location.Cards.SpaceSet
       Arkham.Location.Cards.SpawningGrounds
       Arkham.Location.Cards.StaffAccessHallway
@@ -4892,7 +5203,7 @@ library
       Arkham.Location.Cards.StepsOfYhagharl
       Arkham.Location.Cards.StepsOfYoth
       Arkham.Location.Cards.StMarysHospital
-      Arkham.Location.Cards.StMarysHospitalTheDrownedCity
+      Arkham.Location.Cards.StMarysHospitalRuined
       Arkham.Location.Cards.StoneAltar
       Arkham.Location.Cards.StoneArchways
       Arkham.Location.Cards.StoneBridge
@@ -5435,7 +5746,6 @@ library
       Arkham.Scenarios.BeforeTheBlackThrone.Cosmos
       Arkham.Scenarios.BeforeTheBlackThrone.Cosmos.Types
       Arkham.Scenarios.BeforeTheBlackThrone.Helpers
-      Arkham.Scenarios.BeyondTheGatesOfSleep.FlavorText
       Arkham.Scenarios.BeyondTheGatesOfSleep.Helpers
       Arkham.Scenarios.BlackStarsRise.Helpers
       Arkham.Scenarios.BloodOnTheAltar.Helpers
@@ -5523,7 +5833,6 @@ library
       Arkham.Scenarios.TheNightsUsurper.Helpers
       Arkham.Scenarios.ThePallidMask.Helpers
       Arkham.Scenarios.ThePitOfDespair.Helpers
-      Arkham.Scenarios.TheSearchForKadath.FlavorText
       Arkham.Scenarios.TheSearchForKadath.Helpers
       Arkham.Scenarios.TheSecretName.Helpers
       Arkham.Scenarios.TheSilentHeath.Helpers
@@ -5540,7 +5849,6 @@ library
       Arkham.Scenarios.TurnBackTime.Helpers
       Arkham.Scenarios.UndimensionedAndUnseen.Helpers
       Arkham.Scenarios.UnionAndDisillusion.Helpers
-      Arkham.Scenarios.WakingNightmare.FlavorText
       Arkham.Scenarios.WakingNightmare.Helpers
       Arkham.Scenarios.WakingNightmare.InfestationBag
       Arkham.Scenarios.WarOfTheOuterGods.Helpers
@@ -5757,6 +6065,10 @@ library
       Arkham.Story.Cards.AlaskanWilds
       Arkham.Story.Cards.ALostMemento
       Arkham.Story.Cards.AMomentsRest
+      Arkham.Story.Cards.AncientRelic
+      Arkham.Story.Cards.AncientVaultN
+      Arkham.Story.Cards.AncientVaultO
+      Arkham.Story.Cards.AncientVaultP
       Arkham.Story.Cards.ANobleLegacyFuture
       Arkham.Story.Cards.ANobleLegacyPast
       Arkham.Story.Cards.ANobleLegacyPresent
@@ -5793,11 +6105,14 @@ library
       Arkham.Story.Cards.DriveOffTheMiGo
       Arkham.Story.Cards.DrKenslersOffice
       Arkham.Story.Cards.DyersClassroom
+      Arkham.Story.Cards.EasternWinds
       Arkham.Story.Cards.EffigyOfNodens
       Arkham.Story.Cards.ElderChamber
       Arkham.Story.Cards.EldritchCall
       Arkham.Story.Cards.EndlessSecrets
       Arkham.Story.Cards.EngramsOath
+      Arkham.Story.Cards.ErodedFrieze
+      Arkham.Story.Cards.EscortTheCar
       Arkham.Story.Cards.EvilWithin
       Arkham.Story.Cards.ExhumeTheBones
       Arkham.Story.Cards.FamilialPain
@@ -5810,9 +6125,11 @@ library
       Arkham.Story.Cards.GavriellasFate
       Arkham.Story.Cards.GhastlyTunnels
       Arkham.Story.Cards.GhostsOfTheDead
+      Arkham.Story.Cards.GlyphOrrery
       Arkham.Story.Cards.HastursEnd
       Arkham.Story.Cards.HastursLastStand
       Arkham.Story.Cards.HedgeMaze
+      Arkham.Story.Cards.HiddenVault
       Arkham.Story.Cards.HopeFades
       Arkham.Story.Cards.HurricaneForce
       Arkham.Story.Cards.IfTheUniformFits
@@ -5843,16 +6160,19 @@ library
       Arkham.Story.Cards.NightOne
       Arkham.Story.Cards.NightThree
       Arkham.Story.Cards.NightTwo
+      Arkham.Story.Cards.ObsidianRelic
       Arkham.Story.Cards.OffTheGalley
       Arkham.Story.Cards.OttomanFront
       Arkham.Story.Cards.PackageDelivery
       Arkham.Story.Cards.PennysFate
       Arkham.Story.Cards.PersonalEntaglement
       Arkham.Story.Cards.PlayfulShadows
+      Arkham.Story.Cards.PreventTheirResearch
       Arkham.Story.Cards.PrisonersOfConquest
       Arkham.Story.Cards.PrisonOfMemories
       Arkham.Story.Cards.PsychicRebuke
       Arkham.Story.Cards.RealityAcid
+      Arkham.Story.Cards.ReclaimTheBrain
       Arkham.Story.Cards.RecoverTheSample
       Arkham.Story.Cards.RedeemAFormerColleague
       Arkham.Story.Cards.RescueTheChemist
@@ -5876,10 +6196,12 @@ library
       Arkham.Story.Cards.SickeningReality_69
       Arkham.Story.Cards.SilverTwilightLodgeAllied
       Arkham.Story.Cards.SilverTwilightLodgeRival
+      Arkham.Story.Cards.SkyRelic
       Arkham.Story.Cards.SomberRemains
       Arkham.Story.Cards.SomethingBelow
       Arkham.Story.Cards.SongsThatTheHyadesShallSing
       Arkham.Story.Cards.SpiderInfestedWaters
+      Arkham.Story.Cards.SquamousParasite
       Arkham.Story.Cards.StandingStones
       Arkham.Story.Cards.StarsOfAldebaran
       Arkham.Story.Cards.StepsOfThePalace
@@ -5953,7 +6275,6 @@ library
       Arkham.Timing
       Arkham.Token
       Arkham.TokenStrategy
-      Arkham.Tracing
       Arkham.Trait
       Arkham.Treachery
       Arkham.Treachery.CardDefs.Base
@@ -6746,7 +7067,6 @@ library
       Entity.Arkham.Game
       Entity.Arkham.GameRaw
       Entity.Arkham.LogEntry
-      Entity.Arkham.MlDecision
       Entity.Arkham.Player
       Entity.Arkham.Step
       Entity.Notification
@@ -6830,8 +7150,6 @@ library
     , file-embed
     , hashable
     , hedis
-    , hs-opentelemetry-instrumentation-wai
-    , hs-opentelemetry-sdk
     , http-api-data
     , http-client-tls
     , http-conduit
@@ -6844,7 +7162,6 @@ library
     , monad-time
     , monoidal-containers
     , mtl >=2.3.1
-    , opentelemetry
     , parsec
     , path-pieces
     , persistent
@@ -6866,7 +7183,6 @@ library
     , time
     , tls
     , transformers
-    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -6933,110 +7249,6 @@ executable arkham-api
   if flag(library-only)
     buildable: False
 
-executable arkham-extract
-  main-is: Main.hs
-  other-modules:
-      Paths_arkham_api
-  hs-source-dirs:
-      app-extract
-  default-extensions:
-      AllowAmbiguousTypes
-      BlockArguments
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DerivingVia
-      ExtendedDefaultRules
-      FunctionalDependencies
-      GADTs
-      LambdaCase
-      MultiWayIf
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedRecordDot
-      OverloadedStrings
-      PatternSynonyms
-      RecordWildCards
-      StrictData
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends:
-      cards-discover:cards-discover
-  build-depends:
-      MonadRandom
-    , aeson
-    , aeson-diff
-    , arkham-api
-    , base
-    , bytestring
-    , containers
-    , deepseq
-    , hs-opentelemetry-sdk
-    , monad-logger
-    , persistent
-    , persistent-postgresql
-    , text
-    , transformers
-    , unliftio
-    , vector
-  default-language: GHC2021
-  if flag(library-only)
-    buildable: False
-
-executable arkham-ml-export
-  main-is: Main.hs
-  other-modules:
-      Paths_arkham_api
-  hs-source-dirs:
-      app-ml-export
-  default-extensions:
-      AllowAmbiguousTypes
-      BlockArguments
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DerivingVia
-      ExtendedDefaultRules
-      FunctionalDependencies
-      GADTs
-      LambdaCase
-      MultiWayIf
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedRecordDot
-      OverloadedStrings
-      PatternSynonyms
-      RecordWildCards
-      StrictData
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends:
-      cards-discover:cards-discover
-  build-depends:
-      aeson
-    , arkham-api
-    , base
-    , bytestring
-    , containers
-    , monad-logger
-    , persistent
-    , persistent-postgresql
-    , text
-    , vector
-  default-language: GHC2021
-  if flag(library-only)
-    buildable: False
-
 executable arkham-replay
   main-is: Main.hs
   other-modules:
@@ -7077,53 +7289,7 @@ executable arkham-replay
     , arkham-api
     , base
     , bytestring
-    , hs-opentelemetry-sdk
     , text
-  default-language: GHC2021
-  if flag(library-only)
-    buildable: False
-
-executable arkham-self-play
-  main-is: Main.hs
-  other-modules:
-      Paths_arkham_api
-  hs-source-dirs:
-      app-self-play
-  default-extensions:
-      AllowAmbiguousTypes
-      BlockArguments
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DerivingVia
-      ExtendedDefaultRules
-      FunctionalDependencies
-      GADTs
-      LambdaCase
-      MultiWayIf
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedRecordDot
-      OverloadedStrings
-      PatternSynonyms
-      RecordWildCards
-      StrictData
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends:
-      cards-discover:cards-discover
-  build-depends:
-      MonadRandom
-    , arkham-api
-    , base
-    , containers
-    , hs-opentelemetry-sdk
-    , uuid
   default-language: GHC2021
   if flag(library-only)
     buildable: False
@@ -7132,19 +7298,27 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Arkham.Achievements.EdgeOfTheEarthSpec
       Arkham.Achievements.ReturnToNightOfTheZealotSpec
       Arkham.Achievements.ReturnToTheCircleUndoneSpec
       Arkham.Achievements.ReturnToTheDunwichLegacySpec
       Arkham.Achievements.ReturnToTheForgottenAgeSpec
       Arkham.Achievements.ReturnToThePathToCarcosaSpec
+      Arkham.Achievements.TheDreamEatersSpec
+      Arkham.Achievements.TheDrownedCitySpec
+      Arkham.Achievements.TheFeastOfHemlockValeSpec
+      Arkham.Achievements.TheInnsmouthConspiracySpec
+      Arkham.Achievements.TheScarletKeysSpec
       Arkham.Act.Cards.AFamiliarPatternSpec
       Arkham.Act.Cards.BlackwatersBaneEpicMultiplayerSpec
       Arkham.Act.Cards.ExposeTheAnomalyEpicMultiplayerSpec
       Arkham.Act.Cards.FalseStepV2Spec
       Arkham.ActionSpec
+      Arkham.Agenda.Cards.EmptyStreetsSpec
       Arkham.Agenda.Cards.RestrictedAccessSpec
       Arkham.Agenda.Cards.ShadowsDeepenSpec
       Arkham.Agenda.Cards.TheTrueCulpritV10Spec
+      Arkham.Asset.Assets.AncientAnkhSpec
       Arkham.Asset.Assets.Aquinnah1Spec
       Arkham.Asset.Assets.ArcaneInitiateSpec
       Arkham.Asset.Assets.ArcaneStudies2Spec
@@ -7169,13 +7343,16 @@ test-suite spec
       Arkham.Asset.Assets.DigDeepSpec
       Arkham.Asset.Assets.DiscOfItzamna2Spec
       Arkham.Asset.Assets.DreamersChronicleSpec
+      Arkham.Asset.Assets.DreamsOfDestructionSpec
       Arkham.Asset.Assets.DrHenryArmitage_SpreadingFlamesSpec
       Arkham.Asset.Assets.DrMilanChristopherSpec
       Arkham.Asset.Assets.DukeSpec
       Arkham.Asset.Assets.ElderSignAmulet3Spec
       Arkham.Asset.Assets.EmbezzledTreasureSpec
       Arkham.Asset.Assets.Encyclopedia2Spec
+      Arkham.Asset.Assets.EyesOfTheDreamerSpec
       Arkham.Asset.Assets.FavorOfTheMoon1Spec
+      Arkham.Asset.Assets.FieldAgent2Spec
       Arkham.Asset.Assets.FireAxeSpec
       Arkham.Asset.Assets.FirstAidSpec
       Arkham.Asset.Assets.FlashlightSpec
@@ -7183,6 +7360,7 @@ test-suite spec
       Arkham.Asset.Assets.FortyFiveAutomaticSpec
       Arkham.Asset.Assets.FortyOneDerringerSpec
       Arkham.Asset.Assets.GateBoxSpec
+      Arkham.Asset.Assets.GoodMoneySpec
       Arkham.Asset.Assets.GrotesqueStatue2Spec
       Arkham.Asset.Assets.GrotesqueStatue4Spec
       Arkham.Asset.Assets.GuardDogSpec
@@ -7205,6 +7383,8 @@ test-suite spec
       Arkham.Asset.Assets.MedicalTextsSpec
       Arkham.Asset.Assets.MiguelsKnapsackSpec
       Arkham.Asset.Assets.MitchBrownSpec
+      Arkham.Asset.Assets.NineOfRods3Spec
+      Arkham.Asset.Assets.NoPlaceLikeHomeSpec
       Arkham.Asset.Assets.OldBookOfLoreSpec
       Arkham.Asset.Assets.OldCompass2Spec
       Arkham.Asset.Assets.OnTheirHeels5Spec
@@ -7215,7 +7395,9 @@ test-suite spec
       Arkham.Asset.Assets.PhysicalTraining2Spec
       Arkham.Asset.Assets.PhysicalTrainingSpec
       Arkham.Asset.Assets.PickpocketingSpec
+      Arkham.Asset.Assets.PlumbTheDepthsSpec
       Arkham.Asset.Assets.PoliceBadge2Spec
+      Arkham.Asset.Assets.ProveYourWorthSpec
       Arkham.Asset.Assets.QuickStudy2Spec
       Arkham.Asset.Assets.RabbitsFootSpec
       Arkham.Asset.Assets.ResearchLibrarianSpec
@@ -7232,19 +7414,30 @@ test-suite spec
       Arkham.Asset.Assets.SummonedHound1Spec
       Arkham.Asset.Assets.SurvivalKnifeSpec
       Arkham.Asset.Assets.SwitchbladeSpec
+      Arkham.Asset.Assets.TheBlackCat5Spec
       Arkham.Asset.Assets.TheBlackFan3Spec
+      Arkham.Asset.Assets.TheGrapevineSpec
+      Arkham.Asset.Assets.TheHierophantV3Spec
       Arkham.Asset.Assets.TheHungeringBlade1Spec
       Arkham.Asset.Assets.TheMuscleUnpracticedSpec
       Arkham.Asset.Assets.TheNecronomiconSpec
       Arkham.Asset.Assets.ThirtyFiveWinchesterSpec
+      Arkham.Asset.Assets.ToeTheLineSpec
       Arkham.Asset.Assets.Tonys38LongColtSpec
       Arkham.Asset.Assets.TrueMagickReworkingReality5Spec
+      Arkham.Asset.Assets.ValeLanternExtinguishedLightSpec
+      Arkham.Asset.Assets.WalkInFaithSpec
       Arkham.Asset.Assets.WendysAmuletSpec
       Arkham.Asset.Assets.ZoeysCrossSpec
+      Arkham.Asset.RunnerSpec
       Arkham.Campaign.NightOfTheZealot.ScenariosSpec
+      Arkham.Campaign.RelicOfAgesSpec
+      Arkham.Campaign.ReloadDecksSpec
       Arkham.Campaign.TheCircleUndone.ScenariosSpec
+      Arkham.Campaign.TheDrownedCity.TasksSpec
       Arkham.Campaign.TheDunwichLegacy.ScenariosSpec
       Arkham.Campaign.ThePathToCarcosa.ScenariosSpec
+      Arkham.Campaign.TheScarletKeys.ConcealedSpec
       Arkham.Campaign.UsedAbilitiesSpec
       Arkham.CampaignLogKeySpec
       Arkham.ChaosTokenFaceSpec
@@ -7254,9 +7447,11 @@ test-suite spec
       Arkham.Enemy.Cards.DagonsBroodSpec
       Arkham.Enemy.Cards.ElderDeepOneSpec
       Arkham.Enemy.Cards.GuardianOfTheCrystallizerSpec
+      Arkham.Enemy.Cards.HordeOfNightSpec
       Arkham.Enemy.Cards.JeanDevereuxSeekingClosureSpec
       Arkham.Enemy.Cards.MobEnforcerSpec
       Arkham.Enemy.Cards.MoonBeastSpec
+      Arkham.Enemy.Cards.PoltergeistSpec
       Arkham.Enemy.Cards.SilverTwilightAcolyteSpec
       Arkham.Enemy.Cards.StalkingHybridSpec
       Arkham.Enemy.Cards.StubbornDetectiveSpec
@@ -7264,7 +7459,9 @@ test-suite spec
       Arkham.Enemy.Cards.TheMaskedHunterSpec
       Arkham.Enemy.Cards.TonysQuarrySpec
       Arkham.Enemy.Cards.WatcherFromAnotherDimensionSpec
+      Arkham.Enemy.EngagementSpec
       Arkham.Epic.EpicMultiplayerSpec
+      Arkham.Event.Events.ActOfDesperationSpec
       Arkham.Event.Events.AstoundingRevelationSpec
       Arkham.Event.Events.AtACrossroads1Spec
       Arkham.Event.Events.BackstabSpec
@@ -7275,11 +7472,14 @@ test-suite spec
       Arkham.Event.Events.BlindingLightSpec
       Arkham.Event.Events.BountySpec
       Arkham.Event.Events.BuryThemDeepSpec
+      Arkham.Event.Events.ButterflyEffect1Spec
+      Arkham.Event.Events.CleanSweepSpec
       Arkham.Event.Events.CloseCall2Spec
       Arkham.Event.Events.Counterespionage1Spec
       Arkham.Event.Events.CrypticResearch4Spec
       Arkham.Event.Events.CunningDistractionSpec
       Arkham.Event.Events.DarkMemorySpec
+      Arkham.Event.Events.DarkProphecySpec
       Arkham.Event.Events.DodgeSpec
       Arkham.Event.Events.Doppelganger1Spec
       Arkham.Event.Events.DrawnToTheFlameSpec
@@ -7293,7 +7493,9 @@ test-suite spec
       Arkham.Event.Events.GuerrillaTacticsSpec
       Arkham.Event.Events.HiddenPocketSpec
       Arkham.Event.Events.HotStreak4Spec
+      Arkham.Event.Events.IllTakeThatSpec
       Arkham.Event.Events.LieInWaitSpec
+      Arkham.Event.Events.LiveAndLearnSpec
       Arkham.Event.Events.LookWhatIFoundSpec
       Arkham.Event.Events.Lucky2Spec
       Arkham.Event.Events.LuckySpec
@@ -7305,24 +7507,32 @@ test-suite spec
       Arkham.Event.Events.OnTheLamSpec
       Arkham.Event.Events.OopsSpec
       Arkham.Event.Events.PredatorOrPreySpec
+      Arkham.Event.Events.PutrescentRotSpec
       Arkham.Event.Events.RefineSpec
+      Arkham.Event.Events.Respite2Spec
       Arkham.Event.Events.RightUnderTheirNosesSpec
       Arkham.Event.Events.ScrapeBy1Spec
       Arkham.Event.Events.SearchForTheTruthSpec
       Arkham.Event.Events.SeekingAnswersSpec
+      Arkham.Event.Events.ShedALightSpec
       Arkham.Event.Events.SneakAttackSpec
       Arkham.Event.Events.SureGamble3Spec
+      Arkham.Event.Events.ThePaintedWorldSpec
       Arkham.Event.Events.ToeToToeSpec
       Arkham.Event.Events.Transfiguration2Spec
       Arkham.Event.Events.TrapLimitSpec
       Arkham.Event.Events.WardOfProtectionSpec
       Arkham.Event.Events.WillToSurvive3Spec
+      Arkham.Event.Events.WorkingAHunch2Spec
       Arkham.Event.Events.WorkingAHunchSpec
       Arkham.Game.ChooseDecksSpec
       Arkham.Game.DiffSpec
       Arkham.GameSpec
       Arkham.Helpers.EnemySpec
       Arkham.Helpers.InvestigatorSpec
+      Arkham.Homebrew.DarkMatter.Treacheries.ReminiscenceCovenantSpec
+      Arkham.Homebrew.DarkMatter.Treacheries.ReminiscencePledgeSpec
+      Arkham.Homebrew.DarkMatter.Treacheries.ReminiscenceSecretsSpec
       Arkham.HomebrewRegistrySpec
       Arkham.Investigator.Cards.AgnesBakerSpec
       Arkham.Investigator.Cards.AshcanPeteSpec
@@ -7338,6 +7548,7 @@ test-suite spec
       Arkham.Investigator.Cards.LukeRobinsonSpec
       Arkham.Investigator.Cards.MandyThompsonSpec
       Arkham.Investigator.Cards.MarieLambeau2Spec
+      Arkham.Investigator.Cards.MarionTavaresSpec
       Arkham.Investigator.Cards.PatriceHathawaySpec
       Arkham.Investigator.Cards.RexMurphySpec
       Arkham.Investigator.Cards.RolandBanksSpec
@@ -7352,15 +7563,20 @@ test-suite spec
       Arkham.Location.Cards.EnchantedWoodsVillageOfZoogsSpec
       Arkham.Location.TypesSpec
       Arkham.Matcher.CoveredByAnyInPlayEnemySpec
+      Arkham.Matcher.LegacyJSONSpec
       Arkham.Matcher.NearestLocationToMostSpec
       Arkham.Matcher.OutOfPlayEnemySpec
       Arkham.Modifier.CannotAttackDuringEnemyPhaseSpec
       Arkham.Modifier.SearchAllInvestigatorsSpec
       Arkham.Scenario.DancingMadSpec
+      Arkham.Scenario.Scenarios.DealingsInTheDarkSpec
+      Arkham.Scenario.Scenarios.FateOfTheValeSpec
+      Arkham.Scenario.Scenarios.HemlockValeStandaloneSpec
       Arkham.Scenario.Scenarios.TheThingInTheDepthsSpec
       Arkham.Scenario.SpecHelpers
       Arkham.Scenario.TheMidwinterGalaSpec
       Arkham.ScenarioDeckKeySpec
+      Arkham.Skill.Cards.ArroganceSpec
       Arkham.Skill.Cards.DeductionSpec
       Arkham.Skill.Cards.FearlessSpec
       Arkham.Skill.Cards.GutsSpec
@@ -7399,6 +7615,7 @@ test-suite spec
       Arkham.Treachery.Cards.PrismaticPhenomenonSpec
       Arkham.Treachery.Cards.PsychosisSpec
       Arkham.Treachery.Cards.PsychotropicSporesSpec
+      Arkham.Treachery.Cards.PursuedSpec
       Arkham.Treachery.Cards.RexsCurseSpec
       Arkham.Treachery.Cards.RookieMistakeSpec
       Arkham.Treachery.Cards.SearchingForIzzieSpec
@@ -7478,12 +7695,9 @@ test-suite spec
       aeson
     , aeson-diff
     , arkham-api
-    , async
     , base
     , containers
     , exceptions
-    , hs-opentelemetry-api
-    , hs-opentelemetry-sdk
     , hspec
     , hspec-expectations-lifted
     , lens

@@ -16,6 +16,7 @@ import {
 } from 'vue';
 import { type Game } from '@/arkham/types/Game';
 import { type Scenario } from '@/arkham/types/Scenario';
+import { type Story as StoryAttrs } from '@/arkham/types/Story';
 import { type Enemy } from '@/arkham/types/Enemy';
 import { type ConcealedCard } from '@/arkham/types/ConcealedCard';
 import ConcealedCardView from '@/arkham/components/ConcealedCard.vue';
@@ -54,6 +55,8 @@ import EncounterDeck from '@/arkham/components/EncounterDeck.vue';
 import VictoryDisplay from '@/arkham/components/VictoryDisplay.vue';
 import SkillTest from '@/arkham/components/SkillTest.vue';
 import ScenarioDeck from '@/arkham/components/ScenarioDeck.vue';
+import CthulhuBoard from '@/arkham/components/TheDrownedCity/CthulhuBoard.vue';
+import { isCthulhuBoardEnemyInPlay } from '@/arkham/components/TheDrownedCity/cthulhuBoard';
 import ScenarioDebug from '@/arkham/components/ScenarioDebug.vue';
 import CardsUnderIndicator from '@/arkham/components/CardsUnderIndicator.vue';
 import Story from '@/arkham/components/Story.vue';
@@ -84,7 +87,7 @@ export interface Props {
   realityAcidLightActive?: boolean
 }
 const props = defineProps<Props>()
-const emit = defineEmits(['choose', 'toggleRealityAcidLight'])
+const emit = defineEmits(['choose', 'update', 'toggleRealityAcidLight'])
 const debug = useDebug()
 const { addEntry, removeEntry } = useMenu()
 
@@ -92,6 +95,7 @@ const upgradeDeck = computed(() => Object.values(props.game.question).some((q) =
 
 // emit helpers
 const choose = async (idx: number) => emit('choose', idx)
+const update = async (game: Game) => emit('update', game)
 
 //Refs
 const settingsStore = useSettings()
@@ -1284,7 +1288,11 @@ const enemyGroups = computed(()=>{
       if (p.contents === 'PursuitZone') pursuit.push(e)
     }
     if (p.tag === 'OtherPlacement' && p.contents === 'Global' && e.asSelfLocation === null) global.push(e)
-    if (e.asSelfLocation !== null) asLoc.push(e)
+    // An enemy that IS its own location keeps its asSelfLocation label after it
+    // leaves play, so the placement has to be checked too — otherwise a defeated
+    // Leg of Atlach-Nacha keeps occupying its grid slot. Not narrowed to
+    // AtLocation: Atlach-Nacha itself sits at Global while it is the web's centre.
+    if (e.asSelfLocation !== null && p.tag !== 'OutOfPlay') asLoc.push(e)
   }
   return { outOfPlay, pursuit, global, asLoc, firstVoid }
 })
@@ -1377,6 +1385,12 @@ const activePlayerId = computed(() => props.game.activeInvestigatorId)
 const globalStories = computed(() => Object.values(props.game.stories).filter((story) =>
   story.placement.tag === "OtherPlacement" && story.placement.contents === "Global"
 ))
+
+// Keep both faces of a double-sided story mounted as the same physical card.
+// The backend replaces the story entity when it flips, but a stable key lets
+// Story's image watcher play the card-flip animation instead of remounting.
+const globalStoryKey = (story: StoryAttrs) => [story.art, story.flippedArt].sort().join('/')
+
 const globalAssets = computed(() => Object.values(props.game.assets).filter((asset) => 
   asset.placement.tag === "OtherPlacement" && asset.placement.contents === "Global"
 ))
@@ -1468,6 +1482,34 @@ const darknessLevel = computed(() => props.scenario.tokens[TokenType.DarknessLev
 const signOfTheGods = computed(() => props.scenario.counts["SignOfTheGods"])
 const strengthOfTheAbyss = computed(() => props.scenario.counts["StrengthOfTheAbyss"])
 const distortion = computed(() => props.scenario.counts["Distortion"])
+const cthulhuRage = computed(() => props.scenario.counts["CthulhuRage"])
+
+const cthulhuDeckStoryCodes = new Set([
+  '11705', '11706', '11707', '11708', '11709', '11710',
+  '11711', '11712', '11713', '11714', '11715',
+])
+const resolvingCthulhuDeckStory = computed(() =>
+  Object.values(props.game.stories).find(story =>
+    story.placement.tag === 'OtherPlacement' &&
+    story.placement.contents === 'Unplaced' &&
+    cthulhuDeckStoryCodes.has(story.id.replace(/^c/, '')),
+  ) ?? null,
+)
+const resolvingCthulhuDeckStoryImage = computed(() => {
+  const story = resolvingCthulhuDeckStory.value
+  return story ? cardCodeImage(story.flipped ? story.flippedArt : story.art) : null
+})
+
+/* The Doom of Arkham Pt II. The three Cthulhu facets are at Cthulhu's location and
+ * engaged with the investigators there, but are displayed on the Cthulhu Board
+ * beside the scenario decks rather than in the location grid or a threat area. */
+const cthulhuBoardEnemies = computed(() =>
+  Object.values(props.game.enemies).filter(isCthulhuBoardEnemyInPlay)
+)
+/* The Cthulhu Board is a physical component of The Doom of Arkham Pt II, so it stays
+ * on the table for the whole scenario. Slots empty out as facets are banished to the
+ * victory display and fill again when an act returns them. */
+const showCthulhuBoard = computed(() => props.scenario.id === 'c11688a')
 // Laid to Rest: horror placed on the scenario reference card represents
 // Spiritual Disturbance (defeats everyone at 4). Render it on the scenario card.
 const spiritualDisturbance = computed(() =>
@@ -1965,7 +2007,7 @@ async function addChaosToken(face: any){
 
 <template>
   <div v-if="upgradeDeck" id="game" class="game">
-    <UpgradeDeck :game="game" :key="playerId" :playerId="playerId" @choose="choose"/>
+    <UpgradeDeck :game="game" :key="playerId" :playerId="playerId" @choose="choose" @update="update"/>
   </div>
   <div v-else-if="!gameOver" id="scenario" class="scenario" :data-scenario="scenario.id">
     <div class="scenario-body" :class="{'split-view': splitView, 'scenario-body--notifier-overlays': showScenarioNotifierBar }">
@@ -2167,6 +2209,26 @@ async function addChaosToken(face: any){
             @choose="choose"
           />
         </div>
+        <div v-if="showCthulhuBoard" class="cthulhu-board-row">
+          <aside
+            v-if="resolvingCthulhuDeckStory && resolvingCthulhuDeckStoryImage"
+            class="resolving-cthulhu-card"
+            aria-label="Cthulhu deck card currently resolving"
+          >
+            <img
+              class="card"
+              :class="{ 'source-highlight': scenario.meta?.activeCthulhuFacet }"
+              :src="resolvingCthulhuDeckStoryImage"
+              alt=""
+            />
+          </aside>
+          <CthulhuBoard
+            :game="game"
+            :playerId="playerId"
+            :enemies="cthulhuBoardEnemies"
+            @choose="choose"
+          />
+        </div>
         <ScenarioDeck
           v-for="[,scenarioDeck] in scenarioDecks"
           :key="scenarioDeck[0]"
@@ -2208,6 +2270,12 @@ async function addChaosToken(face: any){
               </template>
             </div>
           </div>
+          <div
+            v-else-if="props.scenario.hasEncounterDeck && !hideEncounterDeck"
+            class="encounter-discard-placeholder"
+            style="grid-area: encounterDiscard"
+            aria-hidden="true"
+          ></div>
 
           <EncounterDeck
             :game="game"
@@ -2255,7 +2323,11 @@ async function addChaosToken(face: any){
         </div>
 
         <div class="scenario-decks" :style="scenarioDeckStyles">
-          <template v-if="Object.values(game.agendas).length > 0">
+          <TransitionGroup
+            v-if="Object.values(game.agendas).length > 0"
+            name="deck-advance"
+            :duration="{ enter: 0, leave: 420 }"
+          >
             <Agenda
               v-for="(agenda, key) in game.agendas"
               :key="key"
@@ -2270,7 +2342,7 @@ async function addChaosToken(face: any){
               @choose="choose"
               @show="doShowCards"
             />
-          </template>
+          </TransitionGroup>
           <div v-else-if="agendaGroupedTreacheries.length > 0" class="treacheries">
             <div v-for="([cCode, treacheries], idx) in agendaGroupedTreacheries" :key="cCode" class="treachery-group" :style="{ zIndex: `calc(var(--z-index-10) * ${agendaGroupedTreacheries.length - idx})` }">
               <div v-for="treacheryId in treacheries" class="treachery-card" :key="treacheryId" >
@@ -2285,20 +2357,22 @@ async function addChaosToken(face: any){
             </div>
           </div>
 
-          <Act
-            v-for="(act, key) in game.acts"
-            :key="key"
-            :act="act"
-            :cardsUnder="cardsUnderAct"
-            :cardsNextTo="cardsNextToAct"
-            :remainingStack="scenario.actStack[act.deckId] || []"
-            :completedStack="scenario.completedActStack[act.deckId] || []"
-            :game="game"
-            :playerId="playerId"
-            :style="{ 'grid-area': `act${act.deckId}`, 'justify-self': 'center' }"
-            @choose="choose"
-            @show="doShowCards"
-          />
+          <TransitionGroup name="deck-advance" :duration="{ enter: 0, leave: 420 }">
+            <Act
+              v-for="(act, key) in game.acts"
+              :key="key"
+              :act="act"
+              :cardsUnder="cardsUnderAct"
+              :cardsNextTo="cardsNextToAct"
+              :remainingStack="scenario.actStack[act.deckId] || []"
+              :completedStack="scenario.completedActStack[act.deckId] || []"
+              :game="game"
+              :playerId="playerId"
+              :style="{ 'grid-area': `act${act.deckId}`, 'justify-self': 'center' }"
+              @choose="choose"
+              @show="doShowCards"
+            />
+          </TransitionGroup>
         </div>
 
         <EnemyView
@@ -2321,7 +2395,7 @@ async function addChaosToken(face: any){
 
         <Story
           v-for="story in globalStories"
-          :key="story.id"
+          :key="globalStoryKey(story)"
           :story="story"
           :game="game"
           :playerId="playerId"
@@ -2376,6 +2450,13 @@ async function addChaosToken(face: any){
                 type="resource"
                 tooltip="Sign of the Gods"
                 :amount="signOfTheGods"
+              />
+              <PoolItem
+                v-if="cthulhuRage"
+                class="cthulhuRage"
+                type="resource"
+                tooltip="Cthulhu's Rage"
+                :amount="cthulhuRage"
               />
               <PoolItem
                 v-if="distortion"
@@ -2525,6 +2606,11 @@ async function addChaosToken(face: any){
           </Teleport>
         </div>
 
+        <div
+          v-if="props.scenario.hasEncounterDeck && !hideEncounterDeck"
+          class="scenario-balance-placeholder"
+          aria-hidden="true"
+        ></div>
       </div>
 
 
@@ -2585,9 +2671,13 @@ async function addChaosToken(face: any){
         <div class="location-cards-stage">
         <Connections :game="game" :playerId="playerId" :enableCosmicEmissaryAnimation="enableCosmicEmissaryAnimation" />
         <transition-group name="map" tag="div" ref="locationMap" class="location-cards" :css="props.scenario.id !== 'c10651'" :style="locationStyles" @before-leave="beforeLeave">
+          <!-- Keyed by id, not label: a location that changes grid label (the
+               Great Lift sliding between levels) must stay the same element so
+               TransitionGroup FLIP-animates it into its new cell. Keying by
+               label made that read as a leave + enter, so it teleported. -->
           <div
             v-for="location in locations"
-            :key="location.label"
+            :key="location.id"
             class="location-cell"
             :class="{ 'location-cell--can-interact': locationCanInteract(location) }"
             :data-location-id="location.id"
@@ -3480,7 +3570,7 @@ async function addChaosToken(face: any){
     grid-area: 1 / 1;
   }
 
-  .depth, .civilians-slain, .targets, .scraps, .switches, .darkness-level, .strength-of-the-abyss {
+  .depth, .civilians-slain, .targets, .scraps, .switches, .darkness-level, .strength-of-the-abyss, .cthulhuRage {
     align-self: end;
     justify-self: end;
     pointer-events: none;
@@ -3543,10 +3633,46 @@ async function addChaosToken(face: any){
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .deck-advance-leave-active {
+    pointer-events: none;
+    position: relative;
+    z-index: var(--z-index-10);
+  }
+
+  .deck-advance-leave-active :deep(.agenda-card > img.card--agenda),
+  .deck-advance-leave-active :deep(.act-row > .card-container > img.card) {
+    will-change: transform, opacity;
+    transition:
+      transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms ease-in;
+  }
+
+  .deck-advance-leave-to :deep(.agenda-card > img.card--agenda),
+  .deck-advance-leave-to :deep(.act-row > .card-container > img.card) {
+    opacity: 0;
+    transform: translate3d(0, -32px, 0) scale(1.035);
+  }
+}
+
 .scenario-encounter-decks {
   display: grid;
   grid-template: "encounterDiscard encounterDeck" "spectralDiscard spectralDeck";
   gap: 10px;
+}
+
+.encounter-discard-placeholder {
+  width: var(--card-width);
+  aspect-ratio: var(--card-aspect);
+  visibility: hidden;
+}
+
+.scenario-balance-placeholder {
+  flex: 0 1 var(--card-width);
+  width: var(--card-width);
+  min-width: 0;
+  aspect-ratio: var(--card-aspect);
+  visibility: hidden;
 }
 
 .empty-grid-position {
@@ -4185,5 +4311,32 @@ async function addChaosToken(face: any){
 .concealed-card-group {
   display: grid;
   place-content: center;
+}
+.cthulhu-board-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: fit-content;
+}
+
+.resolving-cthulhu-card {
+  flex: 0 0 auto;
+  width: var(--card-width);
+
+  img {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.23), 0 3px 6px rgba(0, 0, 0, 0.53);
+
+    &.source-highlight {
+      box-shadow:
+        0 0 0 3px var(--important),
+        0 0 12px 3px var(--important),
+        0 0 22px 5px var(--important),
+        var(--card-shadow);
+      filter: brightness(1.08);
+    }
+  }
 }
 </style>

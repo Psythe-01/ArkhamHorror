@@ -275,7 +275,7 @@ hordeOfNight =
     , cdHealth = health 1
     , cdCardTraits = setFromList [Monster, Elite]
     , cdVictoryPoints = Just 1
-    , cdKeywords = setFromList [Keyword.Massive, Keyword.Swarming (Static 1)]
+    , cdKeywords = setFromList [Keyword.Massive, Keyword.Swarming (PerPlayer 1)]
     }
 
 beingsOfIb :: CardDef
@@ -338,7 +338,7 @@ nightriders =
 theUnnamable :: CardDef
 theUnnamable =
   unique
-    $ doubleSided "06169"
+    $ doubleSided "06169a"
     $ (enemy "06169b" ("The Unnamable" <:> "The Ultimate Abomination") AThousandShapesOfHorror 1)
       { cdHealthDamage = healthDamage 2
       , cdSanityDamage = sanityDamage 2

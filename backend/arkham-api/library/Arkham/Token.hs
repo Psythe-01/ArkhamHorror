@@ -13,6 +13,7 @@ data Token
   | Antiquity
   | Bounty
   | Brilliance
+  | Chance
   | Charge
   | Civilian
   | Clue
@@ -21,6 +22,7 @@ data Token
   | DarknessLevel
   | Depletion
   | Depth
+  | Discovery
   | Doom
   | Durability
   | Eclipse
@@ -39,6 +41,7 @@ data Token
   | Mutation
   | Newspaper
   | Obligation
+  | Obsession
   | Offering
   | Overgrowth
   | Pillar
@@ -55,6 +58,7 @@ data Token
   | Shard
   | Shell
   | Shipment
+  | Sign
   | Study
   | Supply
   | Suspicion
@@ -103,6 +107,18 @@ instance IsLabel "secret" Token where
 
 instance IsLabel "obligation" Token where
   fromLabel = Obligation
+
+instance IsLabel "discovery" Token where
+  fromLabel = Discovery
+
+instance IsLabel "chance" Token where
+  fromLabel = Chance
+
+instance IsLabel "obsession" Token where
+  fromLabel = Obsession
+
+instance IsLabel "sign" Token where
+  fromLabel = Sign
 
 instance IsLabel "clue" Token where
   fromLabel = Clue

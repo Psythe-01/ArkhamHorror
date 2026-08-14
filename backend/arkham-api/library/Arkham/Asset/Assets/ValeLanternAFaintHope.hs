@@ -11,7 +11,7 @@ import Arkham.I18n
 import Arkham.Matcher
 import Arkham.Message.Lifted.Choose
 import Arkham.Message.Lifted.Move
-import Arkham.Message.Lifted.Placement
+import Arkham.Scenarios.TheTwistedHollow.Helpers (placeValeLanternAtNearestLocation)
 import Arkham.Trait (Trait (Dark))
 import Arkham.Window qualified as Window
 
@@ -52,7 +52,7 @@ instance RunMessage ValeLanternAFaintHope where
       pure a
     UseCardAbility iid (isSource attrs -> True) 2 ws _ -> do
       cancelWindowBatch ws
-      withLocationOf iid $ place attrs . AtLocation
+      placeValeLanternAtNearestLocation iid attrs
       flipOverBy iid (attrs.ability 2) attrs
       pure a
     Flip _ _ (isTarget attrs -> True) -> do
@@ -84,4 +84,5 @@ instance RunMessage ValeLanternAFaintHopeEffect where
         _ -> Nothing
     isRevealAfterWindow w = case w.kind of
       Window.RevealLocation _ loc -> w.timing == #after && Just loc == destLid
+      Window.RevealLocationByGroup loc -> w.timing == #after && Just loc == destLid
       _ -> False

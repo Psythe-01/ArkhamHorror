@@ -151,6 +151,7 @@ import Arkham.Matcher (
   pattern AnyInPlayEnemy,
   pattern AssetWithAnyClues,
  )
+import Arkham.Metrics (withMetric)
 import Arkham.Message qualified as Msg
 import Arkham.Message.Lifted (obtainCard, takeControlOfAsset)
 import Arkham.Message.Lifted qualified as Lifted
@@ -174,7 +175,6 @@ import Arkham.Slot
 import Arkham.Timing qualified as Timing
 import Arkham.Token
 import Arkham.Token qualified as Token
-import Arkham.Tracing
 import Arkham.Treachery.Cards qualified as Treacheries
 import Arkham.Window (Window (..), defaultWindows, mkAfter, mkWhen, mkWindow, primaryWindowTarget)
 import Arkham.Window qualified as Window
@@ -418,7 +418,7 @@ handlePerformedActions a@InvestigatorAttrs{..} iid actions = do
   pure $ a & actionsPerformedL %~ (<> [actions])
 
 handlePlayerWindow a@InvestigatorAttrs{..} iid additionalActions isAdditional immediate = do
-  modifiers <- lift $ withSpan_ "getModifiers" $ getModifiers iid
+  modifiers <- lift $ withMetric "getModifiers" $ getModifiers iid
   mTurnInvestigator <-
     if immediate
       then pure []
@@ -473,7 +473,7 @@ handlePlayerWindow a@InvestigatorAttrs{..} iid additionalActions isAdditional im
           _ -> Nothing
 
       playableCards <-
-        lift $ withSpan_ "getPlayableCards" $ getPlayableCards iid iid (UnpaidCost NeedsAction) windows
+        lift $ withMetric "getPlayableCards" $ getPlayableCards iid iid (UnpaidCost NeedsAction) windows
       let drawing = drawCardsF iid a 1
 
       let guardMustTake = if null mustTakeActions then id else const (pure False)
@@ -524,7 +524,7 @@ handlePlayerWindowV2 a@InvestigatorAttrs{..} iid additionalActions isAdditional 
   unless anyForced $ do
     playableCards <-
       lift
-        $ withSpan_ "getPlayableCards"
+        $ withMetric "getPlayableCards"
         $ getPlayableCards investigatorId investigatorId (UnpaidCost NeedsAction) windows
     let
       usesAction = not isAdditional
@@ -543,7 +543,20 @@ handlePlayerWindowV2 a@InvestigatorAttrs{..} iid additionalActions isAdditional 
             )
             (filter (or . sequence [isFastAbility, not . isActionAbility]) actions)
     player <- getPlayer investigatorId
-    unless (null choices) $ push $ AskPlayer $ Ask player $ PlayerWindowChooseOne choices
+    -- Unlike the turn player's window (which always carries an EndTurnButton), this
+    -- window is pure opt-in for a player who is not taking a turn. Without a way out
+    -- an investigator with a permanently available fast ability -- "Ashcan" Pete's
+    -- ready-Duke, Joey the Rat -- hands their seat a one-option, decline-less
+    -- question every time the turn player gets a window (#5284). SkippedWindow is
+    -- cleared by the next CheckWindows, so declining only suppresses the re-ask until
+    -- something actually happens in the game.
+    unless (null choices)
+      $ push
+      $ AskPlayer
+      $ Ask player
+      $ PlayerWindowChooseOne
+      $ choices
+      <> [SkipTriggersButton investigatorId]
   pure a
 
 handleUseCardAbility a@InvestigatorAttrs{..} iid = do

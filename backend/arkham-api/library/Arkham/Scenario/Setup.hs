@@ -29,7 +29,6 @@ import Arkham.Scenario.Types
 import Arkham.ScenarioLogKey
 import Arkham.Target
 import Arkham.Token (Token, addTokens)
-import Arkham.Tracing
 import Control.Lens
 import Control.Monad.Random (MonadRandom (..))
 import Control.Monad.State.Strict
@@ -77,7 +76,7 @@ isReturnToL = lens (.isReturnTo) \m x -> m {isReturnTo = x}
 
 newtype ScenarioBuilderT m a = ScenarioBuilderT {unScenarioBuilderT :: StateT ScenarioBuilderState m a}
   deriving newtype
-    (Functor, Applicative, Monad, MonadIO, MonadState ScenarioBuilderState, MonadTrans, Tracing)
+    (Functor, Applicative, Monad, MonadIO, MonadState ScenarioBuilderState, MonadTrans)
 
 instance MonadRandom m => MonadRandom (ScenarioBuilderT m) where
   getRandom = lift getRandom
@@ -147,6 +146,11 @@ gatherJust encounterSet defs = do
       <$> gatherEncounterSet encounterSet
   attrsL . encounterDeckL %= (Deck cards <>)
 
+gatherJustMatching :: ReverseQueue m => Set.EncounterSet -> CardMatcher -> ScenarioBuilderT m ()
+gatherJustMatching encounterSet matcher = do
+  gather encounterSet
+  removeCards =<< amongGathered (CardFromEncounterSet encounterSet <> not_ matcher)
+
 gatherAndSetAside :: ReverseQueue m => Set.EncounterSet -> ScenarioBuilderT m ()
 gatherAndSetAside encounterSet = do
   cards <- map toCard <$> gatherEncounterSet encounterSet
@@ -178,7 +182,8 @@ placeStoryCapture def = do
 setAside :: (ReverseQueue m, FindInEncounterDeck a, HasCallStack) => [a] -> ScenarioBuilderT m ()
 setAside = setAsideWith pure
 
-setAsideFacedown :: (ReverseQueue m, FindInEncounterDeck a, HasCallStack) => [a] -> ScenarioBuilderT m ()
+setAsideFacedown
+  :: (ReverseQueue m, FindInEncounterDeck a, HasCallStack) => [a] -> ScenarioBuilderT m ()
 setAsideFacedown = setAsideWith (setFacedown True)
 
 setAsideWith
@@ -204,6 +209,7 @@ setAsideWith f as = do
   cards' <- traverse f cards
   attrsL . setAsideCardsL %= (<> cards')
   attrsL . encounterDecksL . each . _1 %= flip removeEachFromDeck (map toCardDef cards)
+
 -- setAside :: ReverseQueue m => [CardDef] -> ScenarioBuilderT m ()
 -- setAside defs = do
 --   setAsideCards defs

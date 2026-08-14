@@ -18,7 +18,6 @@ import Arkham.Helpers.Query (getPlayerCount)
 import Arkham.Helpers.Scenario
 import Arkham.Helpers.SkillTest (getSkillTestAction, getSkillTestTargetedEnemy, inSkillTest)
 import Arkham.Helpers.Xp
-import Arkham.I18n (ikey)
 import Arkham.Id
 import Arkham.Investigator.Types (Field (..))
 import Arkham.Location.Cards qualified as Locations
@@ -223,7 +222,7 @@ instance RunMessage QueenOfAsh where
                   | code == Enemies.davidRenfieldDisillusionedEschatologist.cardCode -> do
                       chooseOneM iid' do
                         labeled' "davidRenfield.search" do
-                          search iid' source iid' [fromDeck] (basic $ #tome <> #spell) (PlayFoundNoCost iid' 1)
+                          search iid' source iid' [fromDeck] (basic $ oneOf [#tome, #spell]) (PlayFoundNoCost iid' 1)
                         unscoped skip_
                   | code == Enemies.corneliaAkelyExhaustedSupervisor.cardCode -> do
                       healDamageIfCan iid' source 3
@@ -232,7 +231,7 @@ instance RunMessage QueenOfAsh where
                   | code == Enemies.sgtEarlMonroeDirtyCop.cardCode -> do
                       chooseOneM iid' do
                         labeled' "sgtEarlMonroe.search"
-                          $ search iid' source iid' [fromDeck] (basic #weapon) (PlayFoundNoCost iid' 1)
+                          $ search iid' source iid' [fromDeck] (basic $ #asset <> #weapon) (PlayFoundNoCost iid' 1)
                         unscoped skip_
                   | code == Enemies.abigailForemanWaryLibrarian.cardCode -> do
                       chooseOneM iid' $ unscoped do

@@ -52,6 +52,8 @@ const inSkillTest = computed(() => props.game.skillTest !== null)
 const choices = computed(() => ArkhamGame.choices(props.game, props.playerId))
 const toChoiceEntry = (c: Message, idx: number): [Message, number] => [c, idx]
 const questionChoices = computed(() => {
+  if (props.game.question[props.playerId]?.tag === QuestionType.CHOOSE_ONE_WIZARD) return []
+
   const withoutDone = choices.value.map(toChoiceEntry).filter(([choice, _]) => {
     const { tag } = choice
     if (tag === MessageType.ABILITY_LABEL) return !abilityLabelHandledElsewhere(choice)
@@ -62,6 +64,7 @@ const questionChoices = computed(() => {
     if (tag === MessageType.INVALID_LABEL) return true
     if (tag === MessageType.SKILL_LABEL) return true
     if (tag === MessageType.SKILL_LABEL_WITH_LABEL) return true
+    if (tag === MessageType.CONNECTION_LABEL) return true
     if (tag === MessageType.COST_LABEL) return true
 
     return false
@@ -79,7 +82,62 @@ const questionChoices = computed(() => {
 const choosePaymentAmounts = inject<(amounts: Record<string, number>) => Promise<void>>('choosePaymentAmounts')
 const chooseAmounts = inject<(amounts: Record<string, number>) => Promise<void>>('chooseAmounts')
 const question = computed(() => props.game.question[props.playerId])
+const wizardQuestion = computed(() =>
+  question.value?.tag === QuestionType.CHOOSE_ONE_WIZARD ? question.value : null
+)
+const wizardSelectedIndex = ref<number | null>(null)
+const wizardFlavorText = computed(() => {
+  if (!wizardQuestion.value) return null
+  if (wizardSelectedIndex.value === null) return wizardQuestion.value.flavorText
+  return wizardQuestion.value.wizardChoices[wizardSelectedIndex.value]?.flavorText ?? null
+})
+const wizardDisplayChoices = computed<[Message, number][]>(() => {
+  if (!wizardQuestion.value) return []
+  const labels = wizardSelectedIndex.value === null
+    ? wizardQuestion.value.wizardChoices.map((choice) => choice.label)
+    : [wizardQuestion.value.confirmLabel, wizardQuestion.value.backLabel]
+  return labels.map((choiceLabel, index) => [
+    { tag: MessageType.LABEL, label: choiceLabel },
+    index,
+  ])
+})
+const chooseWizard = (index: number) => {
+  if (!wizardQuestion.value) return
+  if (wizardSelectedIndex.value === null) {
+    wizardSelectedIndex.value = index
+  } else if (index === 0) {
+    emit('choose', wizardSelectedIndex.value)
+  } else if (index === 1) {
+    wizardSelectedIndex.value = null
+  }
+}
 const focusedChaosTokens = computed(() => props.game.focusedChaosTokens)
+
+// A multi-token reveal opens a separate reaction window for each token. Read the
+// token from that window rather than relying on focused-token order: all revealed
+// tokens can already be focused while an earlier token's window is resolving.
+const scrutinizedChaosTokenId = computed(() => {
+  if (question.value?.tag !== 'ChooseOne' || !question.value.isWindow) return null
+
+  for (const choice of choices.value) {
+    if (choice.tag !== MessageType.ABILITY_LABEL) continue
+
+    for (const window of choice.windows) {
+      if (window.windowType.tag !== 'RevealChaosToken') continue
+      const contents = window.windowType.contents
+      if (!Array.isArray(contents)) continue
+      const token = contents[1]
+      if (!token || typeof token !== 'object') continue
+
+      if ('chaosTokenId' in token && typeof token.chaosTokenId === 'string') {
+        return token.chaosTokenId
+      }
+      if ('id' in token && typeof token.id === 'string') return token.id
+    }
+  }
+
+  return null
+})
 
 type SearchedCardGroup = {
   key: string
@@ -247,11 +305,47 @@ function focusedCardSourceLabel(cardId: string): string | null {
   }
 }
 
+// CardLabel choices already render their cards as the primary, clickable options.
+// Do not repeat those same focused cards in the generic "Cards" summary below.
+// Use counts rather than a Set because multiple copies can share a card code.
+const focusedCardsForGroups = computed(() => {
+  const cardLabelCounts = new Map<string, number>()
+  for (const choice of choices.value) {
+    if (choice.tag !== MessageType.CARD_LABEL) continue
+    cardLabelCounts.set(choice.cardCode, (cardLabelCounts.get(choice.cardCode) ?? 0) + 1)
+  }
+
+  return focusedCards.value.filter((card) => {
+    const cardCode = toCardContents(card).cardCode
+    const remaining = cardLabelCounts.get(cardCode) ?? 0
+    if (remaining === 0) return true
+    cardLabelCounts.set(cardCode, remaining - 1)
+    return false
+  })
+})
+
+const isSummitDeckView = computed(() =>
+  question.value?.tag === QuestionType.QUESTION_LABEL
+    && question.value.label.includes('searchTheSpires.')
+)
+
 const focusedCardGroups = computed<SearchedCardGroup[]>(() => {
-  if (focusedCards.value.length === 0) return []
+  if (focusedCardsForGroups.value.length === 0) return []
+
+  // Summit order matters. Keep every revealed card in the exact draw order and
+  // render them as one set instead of splitting the location and encounter-card
+  // orientations into separate visual rows.
+  if (isSummitDeckView.value) {
+    return [{
+      key: 'focused-summit-deck',
+      zone: 'SummitDeck',
+      label: t('cards'),
+      cards: focusedCardsForGroups.value,
+    }]
+  }
 
   const grouped = new Map<string, ArkhamCard[]>()
-  for (const card of focusedCards.value) {
+  for (const card of focusedCardsForGroups.value) {
     const label = focusedCardSourceLabel(toCardContents(card).id) ?? t('cards')
     grouped.set(label, [...(grouped.get(label) ?? []), card])
   }
@@ -270,6 +364,9 @@ const visibleCardIds = computed(() => new Set([
   ...searchedCards.value.flatMap((group) => group.cards.map((card) => toCardContents(card).id)),
   ...(props.game.scenario?.victoryDisplay ?? []).map((card) => toCardContents(card).id),
   ...Object.values(props.game.assets).flatMap((asset) => asset.cardsUnderneath.map((card) => toCardContents(card).id)),
+  // Committed cards are rendered (and clickable) by CommittedSkills, so a
+  // CardIdTarget on one must not also fall through to a generic Continue button.
+  ...(props.game.skillTest?.committedCards ?? []).map((card) => toCardContents(card).id),
 ]))
 
 function abilityLabelHandledElsewhere(choice: Message) {
@@ -411,14 +508,14 @@ const chooseAmountsChoices = computed<AmountChoice[]>(() => {
 const amountSelections = ref<Record<string, number>>({})
 
 const setInitialAmounts = () => {
-    const labels = question.value?.tag === QuestionType.CHOOSE_AMOUNTS
-      ? question.value.amountChoices.map((choice) => choice.choiceId)
-      : (paymentAmountsChoices.value ?? []).map((choice) => choice.choiceId)
-    amountSelections.value = labels.reduce<Record<string, number>>((previousValue, currentValue) => {
-      previousValue[currentValue] = 0
-      return previousValue
-    }, {})
-  }
+  const amountChoices = chooseAmountsChoices.value.length > 0
+    ? chooseAmountsChoices.value
+    : paymentAmountsChoices.value
+  amountSelections.value = amountChoices.reduce<Record<string, number>>((selections, choice) => {
+    selections[choice.choiceId] = 0
+    return selections
+  }, {})
+}
 
 const doneLabel = computed(() => {
   const doneIndex = choices.value.findIndex((c) => c.tag === MessageType.DONE)
@@ -467,7 +564,7 @@ const traumaIconStyle = (text: string) => {
 
 const hasInnerContent = computed(() => {
   return questionImage.value
-    || (focusedCards.value.length > 0 && choices.value.length > 0)
+    || (focusedCardGroups.value.length > 0 && choices.value.length > 0)
     || (searchedCards.value.length > 0 && choices.value.length > 0)
     || paymentAmountsLabel.value
     || amountsLabel.value
@@ -479,9 +576,16 @@ onMounted(() => {
   void store.initDbCards()
 })
 
+// Polling while decks are being chosen replaces the decoded question object even
+// when the server-side question has not changed. Reset only when the question
+// version or owner changes so an in-progress amount entry is preserved.
 watch(
-  () => props.game.question[props.playerId],
-  setInitialAmounts)
+  [() => props.game.scenarioSteps, () => props.playerId],
+  () => {
+    setInitialAmounts()
+    wizardSelectedIndex.value = null
+  },
+)
 
 const unmetAmountRequirements = computed(() => {
   const q = question.value
@@ -632,6 +736,27 @@ const filteredCards = computed<{ choice: CardLabel; index: number }[]>(() => {
 
 <template>
   <div class='question-wrapper' data-game-actionable="true">
+    <div v-if="wizardFlavorText" class="wizard-question">
+      <div class="wizard-question__content">
+        <h2
+          v-if="wizardFlavorText.title"
+          v-html="label(wizardFlavorText.title)"
+        ></h2>
+        <div class="wizard-question__body">
+          <FormattedEntry
+            v-for="(paragraph, index) in wizardFlavorText.body"
+            :key="index"
+            :entry="paragraph"
+          />
+        </div>
+      </div>
+      <QuestionChoices
+        :choices="wizardDisplayChoices"
+        :game="game"
+        :playerId="playerId"
+        @choose="chooseWizard"
+      />
+    </div>
     <ChaosBagChoice v-if="chaosBagChoice" :choice="chaosBagChoice" :game="game" :playerId="playerId" @choose="choose" />
     <div v-if="cardPiles.length > 0" class="cardPiles">
       <div v-for="{pile, index} in cardPiles" :key="index" class="card-pile" @click="choose(index)">
@@ -726,10 +851,18 @@ const filteredCards = computed<{ choice: CardLabel; index: number }[]>(() => {
         <img :src="questionImage" class="card" />
       </div>
 
-      <Token v-for="(focusedToken, index) in focusedChaosTokens" :key="index" :token="focusedToken" :playerId="playerId" :game="game" @choose="choose" />
+      <Token
+        v-for="focusedToken in focusedChaosTokens"
+        :key="focusedToken.id"
+        :token="focusedToken"
+        :playerId="playerId"
+        :game="game"
+        :scrutinized="focusedToken.id === scrutinizedChaosTokenId"
+        @choose="choose"
+      />
     </div>
 
-    <div v-if="showChoices" class="choices">
+    <div v-if="showChoices && (hasInnerContent || questionChoices.length > 0)" class="choices">
       <div v-if="hasInnerContent" class="question-label">
         <div class="question-image" v-if="questionImage">
           <img :src="questionImage" class="card" />
@@ -750,6 +883,7 @@ const filteredCards = computed<{ choice: CardLabel; index: number }[]>(() => {
                       :card="card"
                       :game="game"
                       :playerId="playerId"
+                      :revealed="isSummitDeckView"
                       @choose="$emit('choose', $event)"
                     />
                   </div>
@@ -1340,6 +1474,15 @@ h2 {
   flex-wrap: wrap;
 }
 
+.focused-cards .group-cards {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.focused-cards .searched-card {
+  flex: 0 0 auto;
+}
+
 .question-label:has(.amount-modal),
 .question-content:has(.amount-modal) {
   width: 100%;
@@ -1717,8 +1860,31 @@ h2 {
     isolation: isolate;
     position: relative;
     .intro-text-body {
+      margin-block: 30px;
+      padding-block: 0;
       max-height: 60vh;
       overflow-y: auto;
+      scrollbar-color: rgba(25, 33, 79, 0.65) transparent;
+      scrollbar-width: thin;
+
+      &::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background-color: rgba(25, 33, 79, 0.65);
+        background-clip: content-box;
+        border: 2px solid transparent;
+        border-radius: 999px;
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(25, 33, 79, 0.8);
+      }
     }
     &::after {
       border: 20px solid #D4CCC3;
@@ -1917,6 +2083,50 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.wizard-question {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  :deep(.question-choices) {
+    padding: 0;
+  }
+}
+
+.wizard-question__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  color: var(--neutral-extra-dark);
+  background: linear-gradient(#dfdad8, #c9c4c2);
+  background-image: v-bind(grunge);
+  background-size: cover;
+  border-radius: 5px;
+
+  h2 {
+    margin: 0;
+    padding-bottom: 4px;
+    color: var(--green-title);
+    font-family: Teutonic, "Noto Sans", sans-serif;
+    font-weight: 500;
+    text-align: center;
+    border-bottom: 3px double var(--green-title);
+  }
+}
+
+.wizard-question__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(50vh, 480px);
+  overflow-y: auto;
+
+  :deep(p) {
+    margin: 0;
+  }
 }
 
 .question-wrapper:has(.haunted) {

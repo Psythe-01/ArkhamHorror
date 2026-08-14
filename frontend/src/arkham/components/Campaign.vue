@@ -88,6 +88,15 @@ const continueCampaign = computed(() => {
     .some((question) => question?.tag === 'ContinueCampaign')
   if (!hasContinueQuestion) return null
 
+  // A scenario can raise its own continuation mid-scenario (Fortune and Folly's
+  // checkpoint and its part 2 hand-off). The campaign step is still parked on
+  // the StandaloneScenarioStep that will resume the campaign afterwards, so both
+  // are ContinueCampaignSteps at once. The server resolves the scenario's step
+  // first (Entity/Answer.hs, the `These c s` branch), so the campaign screen must
+  // defer to continueScenario or we answer with the campaign's next step and the
+  // scenario never advances.
+  if (props.game.scenario?.campaignStep?.tag === 'ContinueCampaignStep') return null
+
   const step = props.game.campaign.step
   if (step?.tag === 'ContinueCampaignStep') return step.contents
   if (step?.tag === 'StandaloneScenarioStep' && step.contents[1]?.tag === 'ContinueCampaignStep') {
@@ -97,25 +106,15 @@ const continueCampaign = computed(() => {
 })
 
 const upgradeDeck = computed(() => {
-  if (props.game.campaign && props.game.campaign.step?.tag === 'UpgradeDeckStep') return true
-
-  const question = Object.values(props.game.question)[0]
-
-  if (question === null || question == undefined) {
-    return false
-  }
-
-  const { tag } = question
-
-  if (tag === 'ChooseUpgradeDeck' && props.game.gameState.tag === 'IsChooseDecks') {
-    return true
-  }
-
-  if (tag === 'QuestionLabel') {
-    return question.question.tag === 'ChooseUpgradeDeck'
-  }
-
-  return false
+  // The campaign step can remain parked on UpgradeDeckStep while killed/insane
+  // investigator handling advances through its continuation. Render this screen
+  // only while an upgrade question actually exists; otherwise it can mask the
+  // newly produced question behind a permanent "waiting" panel.
+  return Object.values(props.game.question).some((question) => {
+    if (!question) return false
+    if (question.tag === 'ChooseUpgradeDeck') return true
+    return question.tag === 'QuestionLabel' && question.question.tag === 'ChooseUpgradeDeck'
+  })
 })
 
 const pickDestiny = computed(() => {
@@ -171,7 +170,7 @@ const hasQuestion = computed(() => Object.keys(props.game.question).length > 0)
 
 <template>
   <div v-if="upgradeDeck" id="game" class="game">
-    <UpgradeDeck :game="game" :playerId="playerId" @choose="choose" />
+    <UpgradeDeck :game="game" :playerId="playerId" @choose="choose" @update="update" />
   </div>
   <div v-else-if="chooseDeck" id="game" class="game">
     <h2 v-if="questionLabel" class="title question-label">{{ questionLabel }}</h2>
@@ -210,7 +209,7 @@ const hasQuestion = computed(() => Object.keys(props.game.question).length > 0)
       :canChooseSideStory="continueScenario.canChooseSideStory"
     />
     <Scenario
-      v-else-if="game.scenario && game.scenario.started && Object.entries(game.investigators).length > 0 && !inScenarioStep"
+      v-else-if="(game.gameState.tag === 'IsActive' || game.gameState.tag === 'IsOver') && game.scenario && game.scenario.started && Object.entries(game.investigators).length > 0 && !inScenarioStep"
       :game="game"
       :scenario="game.scenario"
       :playerId="playerId"

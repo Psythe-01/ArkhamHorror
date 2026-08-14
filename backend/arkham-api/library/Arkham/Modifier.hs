@@ -66,6 +66,11 @@ data ModifierType
   | NoAdditionalCosts
   | AdditionalPlayCostOf ExtendedCardMatcher Cost
   | AdditionalCostToCommit InvestigatorId Cost
+  | -- | An extra cost to take a particular action while at the location that
+    -- carries this modifier (Dark Matter's Cold Wastes taxes the Scan action).
+    -- Gathered from the acting investigator's location, like
+    -- 'AdditionalCostToResign'.
+    AdditionalCostToPerformAction ActionTarget Cost
   | AdditionalCostToEnter Cost
   | AdditionalCostToEnterMatching LocationMatcher Cost
   | AdditionalCostToExplore Cost
@@ -336,6 +341,11 @@ data ModifierType
   | IgnoreChaosToken
   | IgnoreChaosTokenEffects
   | IgnoreChaosTokenModifier
+  | {- | The symbol's revealed effects do not resolve, but the token's numeric
+    modifier is untouched, so a replacement value (see The Black Cat (5))
+    still applies. 'IgnoreChaosTokenEffects' would zero the value as well.
+    -}
+    IgnoreChaosTokenSymbolEffects
   | IgnoreCommitOneRestriction
   | IgnoreDoomOnThis Int
   | IgnoreEngagementRequirement

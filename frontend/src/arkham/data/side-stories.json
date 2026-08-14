@@ -275,6 +275,7 @@
     "id": "85001",
     "name": "The Blob That Ate Everything",
     "epicMultiplayer": true,
+    "returnToVariant": true,
     "standaloneDifficulties": ["Standard", "Hard"],
     "difficultyLevels": {
       "Standard": [
@@ -716,8 +717,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90011",
@@ -801,8 +801,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90020",
@@ -886,8 +885,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90032",
@@ -971,8 +969,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90041",
@@ -1060,8 +1057,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90054",
@@ -1149,8 +1145,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90065",
@@ -1232,8 +1227,7 @@
         "ElderSign"
       ]
     },
-    "xp": 3,
-    "beta": true
+    "xp": 3
   },
   {
     "id": "90094",
@@ -1329,7 +1323,6 @@
       ]
     },
     "xp": 2,
-    "beta": true,
     "deckRequirements": ["Requires investigator with parallel content"]
   }
 ]

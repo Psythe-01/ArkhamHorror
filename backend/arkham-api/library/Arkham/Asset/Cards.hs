@@ -31,7 +31,8 @@ import Arkham.Prelude
 
 allPlayerAssetCards :: Map CardCode CardDef
 allPlayerAssetCards =
-  mapFromList
+  (Homebrew.playerAssetsMap <>)
+    $ mapFromList
     $ concatMap
       toCardCodePairs
       [ abbessAllegriaDiBiase
@@ -1079,11 +1080,16 @@ allPlayerAssetCards =
       , --- The Drowned City
         rubyStandish
       , andyVanNortwick
+      , johnRaymondLegrasse
       , --- Mi-Go Incursion
         universalSolvent
       , petOozeling
       , miGoWeapon
       , ltWilsonStewart
+      , --- Mi-Go Incursion II
+        gMen
+      , corrosiveCloud
+      , alienInstruments
       ]
 
 -- with encounter backs
@@ -1176,7 +1182,11 @@ allEncounterAssetCards =
         universityChemist
       , meteoriteSample
       , theMilitarysPlan
-      , mysteriousPhoto
+      , --- Mi-Go Incursion II
+        armoredCar
+      , brainCase
+      , --- Red Tide Rising
+        mysteriousPhoto
       , mysteriousPhotoBack
       , --- Relics of the Past
         jadeCrocodile
@@ -1214,7 +1224,6 @@ allEncounterAssetCards =
       , skyRelic
       , obsidianClaw
       , obsidianClawPower
-      , johnRaymondLegrasse
       , horrorInClay
       ]
 

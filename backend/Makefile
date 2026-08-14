@@ -1,3 +1,23 @@
+# Per-developer GHC options, appended after the ones in stack.yaml. Exporting
+# GHC_OPTIONS in your shell overrides this default; the flags that actually
+# bound memory (-c, and the absence of -fwrite-if-simplified-core) live in
+# stack.yaml so they survive that override and apply to Docker and CI too.
+#
+# A cold build peaks at ~7.1G of RSS with these settings, down from ~11.3G, at
+# the same speed (497s / 1939s CPU vs 555s / 2060s).
+#
+# Going below 5G is possible but NOT free -- it costs about a third of your wall
+# time, because GHC then majors constantly to stay small:
+#
+#   GHC_OPTIONS="-j12 +RTS -A32m -n2m -qb0 -qg1 -I0 -F1.2 -RTS" make api.watch
+#
+# That lands at 4.81G peak but 650s wall (+31%) on an otherwise identical cold
+# build of all 7196 targets. Use it when you are memory-bound, not by default.
+# At that point the peak is the linker (3.7G), not GHC (0.9G), so squeezing the
+# RTS further buys nothing.
+#
+GHC_OPTIONS ?= -j12 +RTS -A128m -n4m -qb0 -qg1 -I0 -RTS
+
 .PHONY: core.watch
 core.watch:
 	cd arkham-api && \

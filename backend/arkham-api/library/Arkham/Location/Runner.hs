@@ -37,7 +37,11 @@ import Arkham.Direction
 import Arkham.Discover
 import Arkham.Enemy.Types (Field (..))
 import Arkham.Exception
-import Arkham.Helpers.Discover (resolveDiscoverCluesAt, resolveSuccessfulInvestigation)
+import Arkham.Helpers.Discover (
+  resolveDiscoverCluesAt,
+  resolveSuccessfulInvestigation,
+  withExposeInsteadOfInvestigating,
+ )
 import Arkham.Helpers.GameValue (getGameValue)
 import Arkham.Helpers.Modifiers
 import Arkham.Helpers.Window (checkAfter, checkWhen, checkWindows, windows, wouldDoEach)
@@ -70,7 +74,6 @@ import Arkham.Projection
 import Arkham.Spawn
 import Arkham.Timing qualified as Timing
 import Arkham.Token
-import Arkham.Tracing
 import Arkham.Trait
 import Arkham.Window (mkWindow)
 import Arkham.Window qualified as Window
@@ -107,7 +110,7 @@ extendUnrevealed = withUnrevealedAbilities
 extendUnrevealed1 :: LocationAttrs -> Ability -> [Ability]
 extendUnrevealed1 attrs ability = extendUnrevealed attrs [ability]
 getModifiedRevealClueCountWithMods
-  :: (HasGame m, Tracing m) => [ModifierType] -> LocationAttrs -> m Int
+  :: HasGame m => [ModifierType] -> LocationAttrs -> m Int
 getModifiedRevealClueCountWithMods mods attrs =
   if CannotPlaceClues `elem` mods
     then pure 0
@@ -164,28 +167,32 @@ instance RunMessage LocationAttrs where
         $ Investigate.resolveInvestigate a (LocationMaybeFieldCalculation a.id LocationShroud) investigation
       pure a
     PassedSkillTest iid (Just Action.Investigate) source (Initiator target) _ n | isTarget a target -> do
+      option <-
+        withExposeInsteadOfInvestigating
+          iid
+          locationId
+          [ UpdateHistory iid (HistoryItem HistorySuccessfulInvestigations 1)
+          , Successful (Action.Investigate, toTarget a) iid source (toTarget a) n
+          ]
       push
         $ SkillTestResultOption
           ( SkillTestOption
-              { option =
-                  Label
-                    ("Discover Clue at " <> display (toName a))
-                    [ UpdateHistory iid (HistoryItem HistorySuccessfulInvestigations 1)
-                    , Successful (Action.Investigate, toTarget a) iid source (toTarget a) n
-                    ]
+              { option = Label ("Discover Clue at " <> display (toName a)) option
               , kind = OriginalOptionKind
               , criteria = Nothing
               }
           )
       pure a
     PassedSkillTest iid (Just Action.Investigate) source (InitiatorProxy target actual) _ n | isTarget a target -> do
+      option <-
+        withExposeInsteadOfInvestigating
+          iid
+          locationId
+          [Successful (Action.Investigate, toTarget a) iid source actual n]
       push
         $ SkillTestResultOption
           ( SkillTestOption
-              { option =
-                  Label
-                    ("Discover Clue at " <> display (toName a))
-                    [Successful (Action.Investigate, toTarget a) iid source actual n]
+              { option = Label ("Discover Clue at " <> display (toName a)) option
               , kind = OriginalOptionKind
               , criteria = Nothing
               }
@@ -230,7 +237,12 @@ instance RunMessage LocationAttrs where
       pure $ a & beingRemovedL .~ True
     RemoveLocation lid | lid == locationId -> do
       liftRunMessage (RemovedFromPlay $ toSource a) a
-    Discard _ source target | isTarget a target -> do
+    -- A location already on its way out must not restart the removal chain: these
+    -- messages go to the FRONT of the queue, jumping ahead of rescue moves that a
+    -- leave-play interrupt (Another Dimension) has already queued for the
+    -- investigators still on it, so RemovedLocation defeats them, #5388. Mirrors the
+    -- `not_ LocationBeingRemoved` guard in Arkham.Message.Lifted.Location.removeLocation.
+    Discard _ source target | isTarget a target && not locationBeingRemoved -> do
       pushAll
         $ windows [Window.WouldBeDiscarded (toTarget a)]
         <> [Discarded (toTarget a) source (toCard a)]
@@ -325,7 +337,10 @@ instance RunMessage LocationAttrs where
       pure a
     PlaceCluesUpToClueValue lid source n | lid == locationId -> do
       clueValue <- getGameValue locationRevealClues
-      let n' = min n (clueValue - locationClues a)
+      -- Clamped at 0: a location already at or over its clue value (a flipped card
+      -- whose other side has a lower one, say) places none rather than going
+      -- negative, which would silently take clues off it.
+      let n' = max 0 $ min n (clueValue - locationClues a)
       push (PlaceClues source (toTarget a) n')
       pure a
     RemoveAllClues _ target | isTarget a target -> do
@@ -367,9 +382,13 @@ instance RunMessage LocationAttrs where
         else pure $ a & tokensL %~ subtractTokens tType n
     PlacedLocation _ _ lid | lid == locationId -> do
       let
-        doPlace =
-          selectOne ActiveInvestigator >>= traverse_ \active -> do
-            pushM $ checkAfter $ Window.PutLocationIntoPlay active lid
+        -- PlacedLocation carries no investigator: locations are put into play by
+        -- acts, agendas and other scenario cards, and the players advance those as
+        -- a group, so each investigator counts as having put it into play. Crediting
+        -- the active investigator instead fired "after you put a location into play"
+        -- for exactly one of them, and for nobody at all whenever that select came
+        -- back empty.
+        doPlace = pushM $ checkAfter $ Window.PutLocationIntoPlayByGroup lid
       pushM $ checkAfter $ Window.LocationEntersPlay lid
       if locationRevealed
         then do
@@ -394,8 +413,13 @@ instance RunMessage LocationAttrs where
           doPlace
           pure a
     RevealLocation miid lid | lid == locationId && not locationRevealed -> do
-      revealer <- maybe getLead pure miid
-      whenWindowMsg <- checkWindows [mkWindow Timing.When (Window.UnrevealedRevealLocation revealer lid)]
+      -- Same group attribution as the reveal windows below: setup and act/agenda
+      -- reveals arrive with no investigator, so every investigator is the revealer.
+      whenWindowMsg <-
+        checkWindows
+          [ mkWindow Timing.When
+              $ maybe (Window.UnrevealedRevealLocationByGroup lid) (`Window.UnrevealedRevealLocation` lid) miid
+          ]
       pushAll [whenWindowMsg, Do msg]
       pure a
     Do (RevealLocation miid lid) | lid == locationId && not locationRevealed -> do
@@ -415,10 +439,17 @@ instance RunMessage LocationAttrs where
         if revealerHere
           then join <$> fieldMay InvestigatorPreviousLocation revealer
           else pure Nothing
-      whenWindowMsg <- checkWindows [mkWindow Timing.When (Window.RevealLocation revealer lid)]
+      -- A reveal with no investigator behind it came from an act, agenda or other
+      -- scenario card. Those are advanced by the players as a group, so each of them
+      -- counts as the revealer; falling back to the lead fired "after you reveal a
+      -- location" for the lead alone. 'RevealLocationForcedAbilities' keeps the
+      -- single revealer either way -- its mFromLid means "moved in and revealed",
+      -- which is about one investigator's movement.
+      let revealWindow t = mkWindow t $ maybe (Window.RevealLocationByGroup lid) (`Window.RevealLocation` lid) miid
+      whenWindowMsg <- checkWindows [revealWindow Timing.When]
       revealForcedMsg <-
         checkWindows [mkWindow Timing.When (Window.RevealLocationForcedAbilities revealer lid mFromLid)]
-      afterWindowMsg <- checkWindows [mkWindow Timing.After (Window.RevealLocation revealer lid)]
+      afterWindowMsg <- checkWindows [revealWindow Timing.After]
       let currentClues = countTokens Clue locationTokens
 
       pushAll
@@ -504,7 +535,14 @@ instance RunMessage LocationAttrs where
     EndPhase -> do
       pure $ a & breachesL %~ fmap Breach.resetIncursion
     UnrevealLocation lid | lid == locationId -> pure $ a & revealedL .~ False
-    RemovedLocation lid -> pure $ a & directionsL %~ filterMap (/= []) . Map.map (filter (/= lid))
+    RemovedLocation lid ->
+      pure
+        $ a
+        & directionsL
+        %~ filterMap (/= [])
+        . Map.map (filter (/= lid))
+        & positionL
+        %~ \position -> if lid == locationId then Nothing else position
     UseResign iid source | isSource a source -> a <$ push (Resign iid)
     InvestigatorDrewEncounterCard _iid ec -> do
       pure $ a & cardsUnderneathL %~ filter ((/= ec.id) . (.id))
@@ -543,12 +581,19 @@ instance RunMessage LocationAttrs where
       before <- checkWhen $ Window.TakeControlOfKey iid k
       pushAll [before, PlaceKey (InvestigatorTarget iid) k]
       pure a
+    -- These push a bare RemoveLocation rather than going through 'removeLocation'
+    -- (which resolves the When), so set beingRemoved here. Anything reacting to the
+    -- resulting leave-play windows (Vale Lantern's "place it at the nearest location"
+    -- replacement) has to be able to tell this location is on its way out, #5267.
     RemoveAllCopiesOfEncounterCardFromGame cardMatcher | toCard a `cardMatch` cardMatcher -> do
       push $ RemoveLocation (toId a)
-      pure a
+      pure $ a & beingRemovedL .~ True
     ShuffleCardsIntoTopOfDeck _ _ cards | toCard a `elem` cards -> do
       push $ RemoveLocation (toId a)
-      pure a
+      pure $ a & beingRemovedL .~ True
+    ShuffleCardsIntoBottomOfDeck _ _ cards | toCard a `elem` cards -> do
+      push $ RemoveLocation (toId a)
+      pure $ a & beingRemovedL .~ True
     PlaceConcealedCard _ card (AtLocation lid) | a.id == lid -> do
       cards <- shuffleM $ nub $ card : locationConcealedCards
       pure $ a & concealedCardsL .~ cards
@@ -558,11 +603,11 @@ instance RunMessage LocationAttrs where
       pure $ a & concealedCardsL %~ filter (/= card)
     _ -> pure a
 
-locationInvestigatorsWithClues :: (HasGame m, Tracing m) => LocationAttrs -> m [InvestigatorId]
+locationInvestigatorsWithClues :: HasGame m => LocationAttrs -> m [InvestigatorId]
 locationInvestigatorsWithClues attrs =
   filterM (fieldMap InvestigatorClues (> 0)) =<< select (investigatorAt $ toId attrs)
 
-getModifiedShroudValueFor :: (HasCallStack, HasGame m, Tracing m) => LocationAttrs -> m Int
+getModifiedShroudValueFor :: (HasCallStack, HasGame m) => LocationAttrs -> m Int
 getModifiedShroudValueFor attrs = do
   modifiers' <- getModifiers (toTarget attrs)
   base <- getGameValue (fromJustNote "Missing shroud" $ locationShroud attrs)
@@ -582,13 +627,6 @@ getInvestigateAllowed iid attrs = do
   isCannotInvestigate CannotInvestigate {} = True
   isCannotInvestigate (CannotInvestigateLocation lid) = lid == toId attrs
   isCannotInvestigate _ = False
-
-canEnterLocation :: (HasGame m, Tracing m) => EnemyId -> LocationId -> m Bool
-canEnterLocation eid lid = do
-  modifiers' <- getModifiers lid
-  not <$> flip anyM modifiers' \case
-    CannotBeEnteredBy matcher -> eid <=~> matcher
-    _ -> pure False
 
 withResignAction
   :: (Entity location, EntityAttrs location ~ LocationAttrs)
@@ -612,7 +650,7 @@ withDrawCardUnderneathAction x =
 
 instance HasAbilities LocationAttrs where
   getAbilities l =
-    [ basicAbility $ investigateAbility l AbilityInvestigate mempty (onLocation l)
+    [ basicAbility $ investigateAbilityAt l (LocationWithId l.id) AbilityInvestigate mempty (onLocation l)
     , basicAbility
         $ restricted
           l
@@ -649,7 +687,8 @@ getShouldSpawnNonEliteAtConnectingInstead attrs = do
   pure $ flip any modifiers' $ \case
     SpawnNonEliteAtConnectingInstead {} -> True
     _ -> False
-locationEnemiesWithTrait :: (HasGame m, Tracing m) => LocationAttrs -> Trait -> m [EnemyId]
+
+locationEnemiesWithTrait :: HasGame m => LocationAttrs -> Trait -> m [EnemyId]
 locationEnemiesWithTrait attrs trait = select $ enemyAt (toId attrs) <> EnemyWithTrait trait
 
 veiled1 :: LocationAttrs -> Ability -> [Ability]

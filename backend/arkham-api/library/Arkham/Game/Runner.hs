@@ -9,8 +9,6 @@ import Arkham.Action qualified as Action
 import Arkham.ActiveCost
 import Arkham.Agenda
 import Arkham.Agenda.Types (Field (..), doomL)
-import Arkham.Ai.Helpers (overAiPlayers, overAiSeat)
-import Arkham.Ai.State (AiPlayerState (..))
 import Arkham.Asset
 import Arkham.Asset.Cards qualified as Assets
 import Arkham.Asset.Types (Asset, AssetAttrs (..), Field (..), assetIsStory)
@@ -142,7 +140,6 @@ import Arkham.Target
 import Arkham.Tarot qualified as Tarot
 import Arkham.Timing qualified as Timing
 import Arkham.Token qualified as Token
-import Arkham.Tracing
 import Arkham.Treachery
 import Arkham.Treachery.Types (
   Field (..),
@@ -250,12 +247,6 @@ runGameMessage msg g = case msg of
         { gameSettings =
             g.gameSettings {settingsScreamedAllies = insertSet code (settingsScreamedAllies g.gameSettings)}
         }
-  RegisterAiPlayer pid st -> pure $ overAiPlayers (Map.insert pid st) g
-  SetAiFocusOverride pid mFocus -> pure $ overAiSeat pid (\s -> s {aiFocusOverride = mFocus}) g
-  AddAiPriority pid target -> pure $ overAiSeat pid (\s -> s {aiPriorities = s.aiPriorities <> [target]}) g
-  RemoveAiPriority pid target -> pure $ overAiSeat pid (\s -> s {aiPriorities = filter (/= target) s.aiPriorities}) g
-  SetAiEnabled pid b -> pure $ overAiSeat pid (\s -> s {aiEnabled = b}) g
-  SetAiResponseDelay pid n -> pure $ overAiSeat pid (\s -> s {aiResponseDelayMs = n}) g
   ResetLocationOffsets -> pure $ g & locationOffsetsL .~ mempty
   SetCardOwner cardId iid -> do
     -- Debug: force one card's owner to iid across every representation it lives in
@@ -845,6 +836,23 @@ runGameMessage msg g = case msg of
             _ -> pure []
         else pure []
 
+    -- Riders declared with 'AdditionalCostToPerformAction' were previously only
+    -- consulted for affordability and never charged; collect them here so they
+    -- are actually paid. Mirrors 'Arkham.Helpers.Ability.performActionCosts'.
+    performActionCosts <-
+      if doDelayAdditionalCosts
+        then pure []
+        else do
+          ownMods <- getModifiers iid
+          locationMods <- getMaybeLocation iid >>= maybe (pure []) getModifiers
+          let
+            matchesAction = \case
+              IsAnyAction -> True
+              IsAction act -> act `elem` abilityActions ability
+              AnyActionTarget ts -> any matchesAction ts
+              _ -> False
+          pure [c | AdditionalCostToPerformAction t c <- ownMods <> locationMods, matchesAction t]
+
     let
       costF =
         case find isSetCost modifiers' of
@@ -864,7 +872,9 @@ runGameMessage msg g = case msg of
     -- like those provided by Shortcut (2) we have to add a 0 value ActionCost
     -- here so that it can add the additional
     let
-      fixEnemy = maybe id replaceThatEnemy $ getThatEnemy windows'
+      fixEnemy =
+        (maybe id replaceThatInvestigator $ getThatInvestigator windows')
+          . (maybe id replaceThatEnemy $ getThatEnemy windows')
       activeCost =
         ActiveCost
           { activeCostId = acId
@@ -872,7 +882,12 @@ runGameMessage msg g = case msg of
               fixEnemy
                 $ mconcat
                   ( costF (abilityCost ability)
-                      : additionalCosts ++ investigateCosts ++ exploreCosts ++ resignCosts ++ [ActionCost 0]
+                      : additionalCosts
+                        ++ investigateCosts
+                        ++ exploreCosts
+                        ++ resignCosts
+                        ++ performActionCosts
+                        ++ [ActionCost 0]
                   )
           , activeCostPayments = Cost.NoPayment
           , activeCostTarget = ForAbility ability
@@ -959,6 +974,11 @@ runGameMessage msg g = case msg of
       & (foundCardsL . each %~ filter (/= c))
       & (entitiesL . skillsL %~ skillsF)
   ShuffleCardsIntoDeck _ cards ->
+    pure
+      $ g
+      & (focusedCardsL %~ map (filter (`notElem` cards)))
+      & (foundCardsL . each %~ filter (`notElem` cards))
+  ShuffleCardsIntoBottomOfDeck _ _ cards ->
     pure
       $ g
       & (focusedCardsL %~ map (filter (`notElem` cards)))
@@ -1302,6 +1322,13 @@ runGameMessage msg g = case msg of
           . ix eid
           %~ overAttrs (\x -> x {enemyPlacement = OutOfPlay zone})
   RemoveSkill sid -> do
+    -- A skill leaving play returns any chaos tokens it sealed (e.g. Unrelenting
+    -- (1)). RemoveSkill is the quiet removal path used by obtainCard and by
+    -- direct removeSkill calls; it does not route through RemoveFromPlay, so
+    -- unseal here. This mirrors Skill.Runner's RemoveFromPlay handler and is
+    -- idempotent with it and with any card-level afterSkillTest unseal.
+    for_ (preview (entitiesL . skillsL . ix sid) g) \skill ->
+      pushAll [UnsealChaosToken token | token <- skillSealedChaosTokens (toAttrs skill)]
     removedEntitiesF <-
       if notNull (gameActiveAbilities g)
         then do
@@ -1499,19 +1526,18 @@ runGameMessage msg g = case msg of
           _ -> cur
 
         afterPlay = foldl' modifyAfterPlay (skillAfterPlay $ toAttrs skill) mods
+        -- @skillOwner@ is the investigator who committed the card, which is not
+        -- necessarily who owns it (e.g. Guided by the Unseen (3) commits a card out of the
+        -- performing investigator's deck). A committed card always returns to its owner.
+        owner = fromMaybe (skillOwner $ toAttrs skill) card.owner
       pure
         $ if
           | DevourThis iid' <- afterPlay ->
               (Run [ObtainCard (toCard skill).id, Devoured iid' (toCard skill)], Nothing)
           | ReturnToHandAfterTest `elem` mods ->
-              ( ReturnToHand (skillOwner $ toAttrs skill) (SkillTarget skillId)
-              , Nothing
-              )
+              (ReturnToHand owner (SkillTarget skillId), Nothing)
           | PlaceOnBottomOfDeckInsteadOfDiscard `elem` mods ->
-              ( PutCardOnBottomOfDeck
-                  (skillOwner $ toAttrs skill)
-                  (Deck.InvestigatorDeck $ skillOwner $ toAttrs skill)
-                  (toCard skill)
+              ( PutCardOnBottomOfDeck owner (Deck.InvestigatorDeck owner) (toCard skill)
               , Just skillId
               )
           | LeaveCardWhereItIs `elem` mods ->
@@ -1519,17 +1545,10 @@ runGameMessage msg g = case msg of
           | CampaignModifier "hollowed" `elem` mods ->
               (RemoveFromGame (SkillTarget skillId), Nothing)
           | ShuffleIntoDeckInsteadOfDiscard `elem` mods ->
-              ( ShuffleIntoDeck
-                  (Deck.InvestigatorDeck $ skillOwner $ toAttrs skill)
-                  (toTarget skill)
-              , Just skillId
-              )
+              (ShuffleIntoDeck (Deck.InvestigatorDeck owner) (toTarget skill), Just skillId)
           | otherwise -> case afterPlay of
               DiscardThis -> case toCard skill of
-                PlayerCard pc ->
-                  ( AddToDiscard (skillOwner $ toAttrs skill) pc
-                  , Just skillId
-                  )
+                PlayerCard pc -> (AddToDiscard owner pc, Just skillId)
                 _ -> error "Unhandled encounter card skill"
               ExileThis -> case toCard skill of
                 PlayerCard _ ->
@@ -1543,11 +1562,9 @@ runGameMessage msg g = case msg of
                 (RemoveFromGame (SkillTarget skillId), Nothing)
               PlaceThisBeneath target -> (Msg.PlaceUnderneath target [toCard skill], Nothing)
               ReturnThisToHand ->
-                (ReturnToHand (skillOwner $ toAttrs skill) (SkillTarget skillId), Nothing)
+                (ReturnToHand owner (SkillTarget skillId), Nothing)
               ShuffleThisBackIntoDeck ->
-                ( ShuffleIntoDeck (Deck.InvestigatorDeck $ skillOwner $ toAttrs skill) (toTarget skill)
-                , Just skillId
-                )
+                (ShuffleIntoDeck (Deck.InvestigatorDeck owner) (toTarget skill), Just skillId)
               DeferDiscard -> (Noop, Nothing)
 
     -- A committed skill leaving the test must return any chaos tokens it
@@ -1647,6 +1664,10 @@ runGameMessage msg g = case msg of
     case mSkill of
       Just skillId -> do
         card <- field SkillCard skillId
+        -- see RemoveSkill: this branch drops the entity without going through
+        -- RemoveFromPlay, so return any sealed chaos tokens to the bag here
+        for_ (preview (entitiesL . skillsL . ix skillId) g) \skill ->
+          pushAll [UnsealChaosToken token | token <- skillSealedChaosTokens (toAttrs skill)]
         push $ addToHand iid card
         pure $ g & entitiesL . skillsL %~ deleteMap skillId
       Nothing -> pure g
@@ -1968,7 +1989,10 @@ runGameMessage msg g = case msg of
       CheckWindows [] -> True
       Do (CheckWindows []) -> True
       _ -> False
-    pure g
+    -- The `Would bId []` that would have cleared the current batch was just
+    -- removed, so clear it here; otherwise every window checked for the rest of
+    -- the game is stamped with this dead batch id.
+    pure $ g & currentBatchIdL %~ \c -> if c == Just bId then Nothing else c
   IgnoreBatch bId -> do
     removeAllMessagesMatching $ \case
       Would bId' _ -> bId == bId'
@@ -2338,7 +2362,10 @@ runGameMessage msg g = case msg of
                   playerId <- getPlayer iid
                   pure $ Just $ singletonMap playerId [Label lbl xs]
                 _ -> pure Nothing
-            push $ AskMap askMap
+            -- Every option was popped off the queue above, so nothing regenerates
+            -- these seats: without Retain, one player answering discards every other
+            -- player's option along with its messages (#4787).
+            push $ Retain (AskMap askMap)
     pure g
   SkillTestResultOption opt -> do
     fromQueue (elem CollectSkillTestOptions) >>= \case
@@ -2945,7 +2972,14 @@ runGameMessage msg g = case msg of
   StoryMessage (PlaceStory card placement) -> do
     let storyId = StoryId $ toCardCode card
     let story' = overAttrs (Story.placementL .~ placement) (createStory card Nothing storyId)
-    pure $ g & entitiesL . storiesL . at storyId ?~ story'
+    pure
+      $ g
+      & entitiesL
+      . storiesL
+      . at storyId
+      ?~ story'
+      & entryTicksL
+      %~ insertMap card.id (gameWindowTick g)
   StoryMessage (ResolveStory _ _ sid) -> do
     card <- field StoryCard sid
     pure $ g & focusedCardsL %~ map (filter (/= card))
@@ -3299,6 +3333,15 @@ runGameMessage msg g = case msg of
             )
             (cdLimits $ toCardDef card)
       PlayerEnemyType -> do
+        -- Revelation player enemies never pass through DrewPlayerEnemy, so send the
+        -- "drew enemy" display here or the weakness lands in the threat area silently.
+        investigator <- getInvestigator iid
+        withI18n $ cardNameVar card $ investigatorNameVar investigator do
+          if Keyword.Peril `elem` cdKeywords (toCardDef card)
+            then do
+              pid <- getPlayer iid
+              sendEnemyOnly pid (ikey' "drew") (toJSON $ toCard card)
+            else sendEnemy (ikey' "drew") (toJSON $ toCard card)
         enemyId <- getRandom
         let enemy = createEnemy card enemyId
         -- Asset is assumed to have a revelation ability if drawn from encounter deck
@@ -3743,7 +3786,7 @@ runGameMessage msg g = case msg of
   _ -> pure g
 
 -- TODO: Clean this up, the found of stuff is a bit messy
-preloadEntities :: (HasGame m, Tracing m) => Game -> m Game
+preloadEntities :: HasGame m => Game -> m Game
 preloadEntities g = do
   let
     investigators = view (entitiesL . investigatorsL) g

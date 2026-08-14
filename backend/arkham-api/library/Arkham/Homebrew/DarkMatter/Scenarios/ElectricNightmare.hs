@@ -1,26 +1,28 @@
 module Arkham.Homebrew.DarkMatter.Scenarios.ElectricNightmare (electricNightmare) where
 
+import Arkham.Card
+import Arkham.Helpers.FlavorText
+import Arkham.Helpers.Query (allInvestigators, getLead)
+import Arkham.Helpers.SkillTest (getSkillTestRevealedChaosTokens)
 import Arkham.Homebrew.DarkMatter.CardDefs.Acts qualified as Acts
 import Arkham.Homebrew.DarkMatter.CardDefs.Agendas qualified as Agendas
 import Arkham.Homebrew.DarkMatter.CardDefs.Assets qualified as Assets
+import Arkham.Homebrew.DarkMatter.CardDefs.Enemies qualified as Enemies
+import Arkham.Homebrew.DarkMatter.CardDefs.Locations qualified as Locations
+import Arkham.Homebrew.DarkMatter.CardDefs.Stories qualified as Stories
+import Arkham.Homebrew.DarkMatter.CardDefs.Treacheries qualified as Treacheries
 import Arkham.Homebrew.DarkMatter.Helpers
 import Arkham.Homebrew.DarkMatter.Key
-import Arkham.Card
 import Arkham.Homebrew.DarkMatter.Sets qualified as Set
-import Arkham.Homebrew.DarkMatter.CardDefs.Enemies qualified as Enemies
-import Arkham.Helpers.FlavorText
-import Arkham.Helpers.Query (allInvestigators, getLead)
 import Arkham.Id
-import Arkham.Homebrew.DarkMatter.CardDefs.Locations qualified as Locations
 import Arkham.Location.Grid
 import Arkham.Matcher
 import Arkham.Message.Lifted.Choose
 import Arkham.Message.Lifted.Log
+import Arkham.Modifier (ModifierType (DoubleModifiersOnChaosTokens))
 import Arkham.Placement
 import Arkham.Resolution
 import Arkham.Scenario.Import.Lifted
-import Arkham.Homebrew.DarkMatter.CardDefs.Stories qualified as Stories
-import Arkham.Homebrew.DarkMatter.CardDefs.Treacheries qualified as Treacheries
 import Arkham.Window qualified as Window
 
 newtype ElectricNightmare = ElectricNightmare ScenarioAttrs
@@ -29,11 +31,7 @@ newtype ElectricNightmare = ElectricNightmare ScenarioAttrs
 
 electricNightmare :: Difficulty -> ElectricNightmare
 electricNightmare difficulty =
-  scenario ElectricNightmare ":dark-matter:053" "Electric Nightmare" difficulty []
-
--- | Local scenario i18n scope: darkMatter.electricNightmare.*
-scenarioI18n :: (HasI18n => a) -> a
-scenarioI18n a = campaignI18n $ scope "electricNightmare" a
+  scenario ElectricNightmare ":dark-matter:054" "Electric Nightmare" difficulty []
 
 instance HasChaosTokenValue ElectricNightmare where
   getChaosTokenValue iid tokenFace (ElectricNightmare attrs) = case tokenFace of
@@ -46,12 +44,16 @@ instance HasChaosTokenValue ElectricNightmare where
     otherFace -> getChaosTokenValue iid otherFace attrs
 
 instance RunMessage ElectricNightmare where
-  runMessage msg s@(ElectricNightmare attrs) = runQueueT $ scenarioI18n $ case msg of
+  runMessage msg s@(ElectricNightmare attrs) = runQueueT $ scenarioI18n "electricNightmare" $ case msg of
     PreScenarioSetup -> do
       flavor $ scope "intro" $ h "title" >> p "body"
       -- guide p6: each investigator with 3 or fewer Memories reads
       -- Desynchronization and adds the Desync weakness to their deck.
-      checkDesynchronization
+
+      iids <- filterM (fmap (<= 3) . getMemories) =<< allInvestigators
+      unless (null iids) do
+        scope "desynchronization" $ flavor $ compose.green $ h.noUnderline.center "title" >> p "body"
+        for_ iids \iid -> addCampaignCardToDeck iid ShuffleIn Treacheries.desync
       pure s
     Setup -> runScenarioSetup ElectricNightmare attrs do
       setUsesGrid
@@ -106,11 +108,26 @@ instance RunMessage ElectricNightmare where
           card <- genCard Enemies.cybervirus
           addToHand iid (only card)
     ResolveChaosToken _ Tablet iid -> do
-      -- Reveal another token. ("Double that token's modifier" is a HARD/EXPERT
-      -- clause; doubling the freshly-drawn token requires a per-draw token
-      -- modifier hook the engine does not cleanly expose here.)
-      -- TODO(homebrew): double the modifier of the newly drawn token.
-      push $ DrawAnotherChaosToken iid
+      -- [tablet]: "Reveal another token. Double that token's modifier."
+      --
+      -- The freshly drawn token does not exist yet, so we snapshot the tokens
+      -- already revealed for this test and hand them to a follow-up message.
+      -- Everything 'DrawAnotherChaosToken' queues (RequestAnotherChaosToken ->
+      -- RevealChaosToken -> RevealSkillTestChaosTokens -> ResolveChaosToken) is
+      -- pushed to the front of the queue, so the follow-up runs once the new
+      -- token is on the table but still well before ST.6 computes the result.
+      before <- map (.id) <$> getSkillTestRevealedChaosTokens
+      pushAll [DrawAnotherChaosToken iid, ScenarioSpecific "doubleRevealedToken" (toJSON before)]
+      pure s
+    ScenarioSpecific "doubleRevealedToken" v -> do
+      -- Follow-up for the [tablet] effect above. The token the [tablet] caused
+      -- to be revealed is the first revealed token that was not in the
+      -- snapshot; if that token itself reveals more (bless/curse/frost, or
+      -- another [tablet]), those are later in the list and are left alone.
+      let before = toResult v :: [ChaosTokenId]
+      revealed <- getSkillTestRevealedChaosTokens
+      for_ (find ((`notElem` before) . (.id)) revealed) \token ->
+        chaosTokenEffect Tablet token DoubleModifiersOnChaosTokens
       pure s
     FailedSkillTest iid _ _ (ChaosTokenTarget token) _ _ -> do
       case token.face of
@@ -156,13 +173,23 @@ instance RunMessage ElectricNightmare where
             NoResolution -> if reintegratedCount >= 1 then 2 else 1
             Resolution n -> n
 
-      case resolved of
-        1 -> do
+      when (res == NoResolution) do
+        resolutionFlavor do
+          setTitle "noResolution.title"
+          p "noResolution.body"
+          ul do
+            li.validate (reintegratedCount == 0) "noResolution.proceedToResolution1"
+            li.validate (reintegratedCount >= 1) "noResolution.proceedToResolution2"
+        push $ ScenarioResolution $ Resolution resolved
+
+      case res of
+        NoResolution -> pure ()
+        Resolution 1 -> do
           record YouAreTrappedInAVirtualNightmare
           eachInvestigator drivenInsane
           resolution "resolution1"
           gameOver
-        2 -> do
+        Resolution 2 -> do
           record YouPartiallyRestoredTheSanityOfK2PS187
           offerK2Reward $ case reintegratedCount of
             1 -> Just Assets.k2PS18725Functionality
@@ -170,13 +197,13 @@ instance RunMessage ElectricNightmare where
             3 -> Just Assets.k2PS18775Functionality
             _ -> Nothing
           addReminiscenceToken
-          resolutionWithXp "resolution2" $ allGainXp' attrs
+          earnXp attrs "resolution2"
           endOfScenario
-        3 -> do
+        Resolution 3 -> do
           record YouFullyRestoredTheSanityOfK2PS187
           offerK2Reward $ Just Assets.k2PS187100Functionality
           addReminiscenceToken
-          resolutionWithXp "resolution3" $ allGainXp' attrs
+          earnXp attrs "resolution3"
           endOfScenario
         _ -> error "Invalid resolution"
       pure s
@@ -191,5 +218,5 @@ offerK2Reward (Just def) = do
   investigators <- allInvestigators
   lead <- getLead
   chooseOneM lead do
-    labeled "No investigator adds it to their deck" nothing
+    scenarioI18n "electricNightmare" $ labeled' "noInvestigatorAddsItToTheirDeck" nothing
     targets investigators \iid -> addCampaignCardToDeck iid DoNotShuffleIn def

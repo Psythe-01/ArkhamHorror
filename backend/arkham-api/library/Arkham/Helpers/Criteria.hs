@@ -29,6 +29,7 @@ import {-# SOURCE #-} Arkham.Entities
 import Arkham.Event.Types (Event, Field (..))
 import Arkham.Event.Types qualified
 import {-# SOURCE #-} Arkham.Game
+import Arkham.Game.Settings (settingsAchievementsEnabled)
 import {-# SOURCE #-} Arkham.GameEnv
 import Arkham.Helpers (unDeck)
 import Arkham.Helpers.Ability (getCanPerformAbility)
@@ -46,7 +47,7 @@ import Arkham.Helpers.GameValue (gameValueMatches)
 import Arkham.Helpers.History (historyMatches)
 import Arkham.Helpers.Investigator (getAsIfInHandCardsNotForPlay)
 import Arkham.Helpers.Location (getCanMoveToMatchingLocations, locationMatches)
-import Arkham.Helpers.Log (getHasRecord, getRecordCount, scenarioCount)
+import Arkham.Helpers.Log (getHasRecord, getRecordCount, getSomeRecordSetJSON, scenarioCount)
 import Arkham.Helpers.Modifiers (getModifiers, hasModifier, withModifiersOf)
 import Arkham.Helpers.Phase (matchPhase)
 import Arkham.Helpers.Placement (onSameLocation)
@@ -69,7 +70,6 @@ import Arkham.Key
 import Arkham.Location.Grid (Pos, isAdjacent)
 import Arkham.Location.Types (Field (..))
 import Arkham.Matcher qualified as Matcher
-import Arkham.Metrics qualified as Metrics
 import Arkham.Modifier
 import Arkham.Name
 import Arkham.Placement
@@ -84,7 +84,6 @@ import Arkham.Source
 import Arkham.Story.Types (Field (..))
 import Arkham.Target
 import Arkham.Token qualified as Token
-import Arkham.Tracing
 import Arkham.Trait (Trait (Ritual, Spell))
 import Arkham.Treachery.Types (Field (..))
 import Arkham.Window (Window (..), mkWhen)
@@ -101,7 +100,7 @@ import Data.Typeable
 import Data.UUID qualified as UUID
 
 passesCriteria
-  :: (HasCallStack, Tracing m, HasGame m)
+  :: (HasCallStack, HasGame m)
   => InvestigatorId
   -> Maybe (Card, CostStatus)
   -> Source
@@ -109,8 +108,7 @@ passesCriteria
   -> [Window]
   -> Criterion
   -> m Bool
-passesCriteria iid mcard source' requestor windows' ctr = withSpan' ("passesCriteria/" <> Metrics.messageTag ctr) \currentSpan ->
-  addAttribute currentSpan "criterion" (tshow ctr) >> case ctr of
+passesCriteria iid mcard source' requestor windows' ctr = case ctr of
     Criteria.IfCriteria p a b -> do
       pv <- passesCriteria iid mcard source' requestor windows' p
       passesCriteria iid mcard source' requestor windows' $ if pv then a else b
@@ -268,6 +266,9 @@ passesCriteria iid mcard source' requestor windows' ctr = withSpan' ("passesCrit
       recorded <- getHasRecord key
       pure $ not recorded
     Criteria.HasRecord key -> getHasRecord key
+    Criteria.RecordSetHasAtLeast value key entries -> do
+      n <- length . filter (`elem` entries) <$> getSomeRecordSetJSON @Text key
+      gameValueMatches n (Matcher.AtLeast value)
     Criteria.DuringPhase phaseMatcher -> do
       p <- getPhase
       matchPhase p phaseMatcher
@@ -536,7 +537,7 @@ passesCriteria iid mcard source' requestor windows' ctr = withSpan' ("passesCrit
       results <- select cardMatcher
 
       let
-        go :: (HasGame n, Tracing n) => Maybe (Card, CostStatus) -> n Int
+        go :: HasGame n => Maybe (Card, CostStatus) -> n Int
         go = \case
           Just (card, AuxiliaryCost aux inner) -> do
             let increase = IncreaseCostOf (Matcher.basic $ Matcher.CardWithId card.id) $ totalResourceCost aux
@@ -598,7 +599,7 @@ passesCriteria iid mcard source' requestor windows' ctr = withSpan' ("passesCrit
         <> Matcher.InDiscardOf (investigatorMatcher <> can.have.cards.leaveDiscard)
     Criteria.CanAffordCostIncrease n -> do
       let
-        go :: (HasGame n, Tracing n) => Maybe (Card, CostStatus) -> n Bool
+        go :: HasGame n => Maybe (Card, CostStatus) -> n Bool
         go = \case
           Just (card, AuxiliaryCost aux inner) -> do
             let increase = IncreaseCostOf (Matcher.basic $ Matcher.CardWithId card.id) $ totalResourceCost aux
@@ -669,6 +670,7 @@ passesCriteria iid mcard source' requestor windows' ctr = withSpan' ("passesCrit
         _ -> selectAny (Matcher.replaceYouMatcher iid matcher)
     Criteria.TargetExists matcher -> do
       selectAny (Matcher.replaceYouMatcher iid matcher)
+    Criteria.AchievementsEnabled -> settingsAchievementsEnabled . gameSettings <$> getGame
     Criteria.IsReturnTo -> do
       mcampaign <- selectOne Matcher.TheCampaign
       case mcampaign of
@@ -822,7 +824,7 @@ passesCriteria iid mcard source' requestor windows' ctr = withSpan' ("passesCrit
 
 -- | Build a matcher and check the list
 passesEnemyCriteria
-  :: (HasGame m, Tracing m)
+  :: HasGame m
   => InvestigatorId
   -> Source
   -> [Window]
@@ -863,21 +865,22 @@ passesEnemyCriteria iid source windows' criterion = do
           [] -> error "can not be called without enemy source"
           xs -> pure $ Matcher.NotEnemy (concatMap Matcher.EnemyWithId xs)
 
--- | True Magick: Reworking Reality (5) lets its controller resolve abilities on
--- [Spell] assets in their hand by treating True Magick as if it were the
--- revealed asset. The in-hand spell assets are NOT preloaded into
--- gameInHandEntities (they carry no InHandEffect), and getAbilities is pure so
--- it cannot read the hand — therefore the borrowed abilities have to be produced
--- here, in the HasGame-aware collector.
---
--- For each in-hand [Spell] asset we build a throwaway asset entity that wears
--- True Magick's id and card code (so its costs/charges resolve against True
--- Magick), load that entity's modifiers, and hand its cost-rewritten abilities
--- to the callback. This is the single source of truth shared by both:
---   * the HasTrueMagick criterion (True Magick's own tooltip), and
---   * getTrueMagickInHandAbilities (the abilities surfaced to the matcher DSL).
+{- | True Magick: Reworking Reality (5) lets its controller resolve abilities on
+[Spell] assets in their hand by treating True Magick as if it were the
+revealed asset. The in-hand spell assets are NOT preloaded into
+gameInHandEntities (they carry no InHandEffect), and getAbilities is pure so
+it cannot read the hand — therefore the borrowed abilities have to be produced
+here, in the HasGame-aware collector.
+
+For each in-hand [Spell] asset we build a throwaway asset entity that wears
+True Magick's id and card code (so its costs/charges resolve against True
+Magick), load that entity's modifiers, and hand its cost-rewritten abilities
+to the callback. This is the single source of truth shared by both:
+  * the HasTrueMagick criterion (True Magick's own tooltip), and
+  * getTrueMagickInHandAbilities (the abilities surfaced to the matcher DSL).
+-}
 eachTrueMagickHandAbility
-  :: (HasCallStack, Tracing m, HasGame m)
+  :: (HasCallStack, HasGame m)
   => AssetAttrs
   -> InvestigatorId
   -> (Card -> [Ability] -> ReaderT Game m a)
@@ -897,20 +900,21 @@ eachTrueMagickHandAbility attrs iid f = do
         local (modifiersL <>~ modifiers) do
           f c (map (overCost replaceAssetIds) (getAbilities a))
 
--- | The [action] abilities True Magick currently grants from its controller's
--- hand, re-sourced onto True Magick via @ProxySource (CardIdSource cid)@ so that
--- @ability.source.asset == trueMagickId@. This is what makes the matcher DSL
--- (AssetAbility/AssetWithPerformableAbility) — and therefore Sign Magick (3) —
--- able to target True Magick. These are spliced into getGameAbilities alongside
--- the generic in-hand asset path; getAbilities cannot produce them because it is
--- pure and cannot read the hand.
---
--- INVARIANT: like every other path in getGameAbilities, this surfaces CANDIDATE
--- abilities only — it deliberately does NOT call getCanPerformAbility. Doing so
--- here would re-enter getGameAbilities (criteria evaluation selects abilities)
--- on the hot path. Performability is the consumer's job (AssetWithPerformableAbility
--- and Sign Magick (3) both filter with getCanPerformAbility downstream).
-getTrueMagickInHandAbilities :: (HasCallStack, Tracing m, HasGame m) => m [Ability]
+{- | The [action] abilities True Magick currently grants from its controller's
+hand, re-sourced onto True Magick via @ProxySource (CardIdSource cid)@ so that
+@ability.source.asset == trueMagickId@. This is what makes the matcher DSL
+(AssetAbility/AssetWithPerformableAbility) — and therefore Sign Magick (3) —
+able to target True Magick. These are spliced into getGameAbilities alongside
+the generic in-hand asset path; getAbilities cannot produce them because it is
+pure and cannot read the hand.
+
+INVARIANT: like every other path in getGameAbilities, this surfaces CANDIDATE
+abilities only — it deliberately does NOT call getCanPerformAbility. Doing so
+here would re-enter getGameAbilities (criteria evaluation selects abilities)
+on the hot path. Performability is the consumer's job (AssetWithPerformableAbility
+and Sign Magick (3) both filter with getCanPerformAbility downstream).
+-}
+getTrueMagickInHandAbilities :: (HasCallStack, HasGame m) => m [Ability]
 getTrueMagickInHandAbilities = do
   trueMagicks <- select $ Matcher.assetIs Assets.trueMagickReworkingReality5
   fmap concat $ for trueMagicks \trueMagick -> do
@@ -925,19 +929,20 @@ getTrueMagickInHandAbilities = do
             ]
       _ -> pure []
 
--- | The Spell/Ritual traits True Magick (5) should currently read as, so that
--- Sign Magick (3)'s @hasAnyTrait [Spell, Ritual]@ criterion (and its
--- @AssetOneOf [AssetWithTrait Spell, AssetWithTrait Ritual]@ resolution) match
--- it — but ONLY when True Magick can actually act as a spell right now (there is
--- an in-hand [Spell] asset with an [action] ability to borrow). We deliberately
--- restrict the additions to Spell/Ritual: True Magick must NOT read as a Spell
--- at rest, or it would wrongly be swept up by "all your Spell assets" effects.
---
--- This is intentionally modifier-free (pure getAbilities, no getModifiersFor /
--- getCanPerformAbility) so it is safe to call from True Magick's HasModifiersFor
--- without re-entering modifier collection. Full performability is still enforced
--- when the borrowed ability is offered via getTrueMagickInHandAbilities.
-getTrueMagickGrantedTraits :: (HasGame m, Tracing m) => AssetAttrs -> m [Trait]
+{- | The Spell/Ritual traits True Magick (5) should currently read as, so that
+Sign Magick (3)'s @hasAnyTrait [Spell, Ritual]@ criterion (and its
+@AssetOneOf [AssetWithTrait Spell, AssetWithTrait Ritual]@ resolution) match
+it — but ONLY when True Magick can actually act as a spell right now (there is
+an in-hand [Spell] asset with an [action] ability to borrow). We deliberately
+restrict the additions to Spell/Ritual: True Magick must NOT read as a Spell
+at rest, or it would wrongly be swept up by "all your Spell assets" effects.
+
+This is intentionally modifier-free (pure getAbilities, no getModifiersFor /
+getCanPerformAbility) so it is safe to call from True Magick's HasModifiersFor
+without re-entering modifier collection. Full performability is still enforced
+when the borrowed ability is offered via getTrueMagickInHandAbilities.
+-}
+getTrueMagickGrantedTraits :: HasGame m => AssetAttrs -> m [Trait]
 getTrueMagickGrantedTraits attrs = case attrs.controller of
   Just iid | attrs.isInPlay -> do
     hand <- fieldMap InvestigatorHand (filterCards (card_ $ #asset <> #spell)) iid
