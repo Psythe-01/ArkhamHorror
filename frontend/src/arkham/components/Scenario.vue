@@ -48,6 +48,10 @@ import CardRow from '@/arkham/components/CardRow.vue';
 import KeyToken from '@/arkham/components/Key.vue';
 import PlayerTabs from '@/arkham/components/PlayerTabs.vue';
 import Connections from '@/arkham/components/Connections.vue';
+import RainOverlay from '@/arkham/components/RainOverlay.vue';
+import { supportsHtmlInCanvas } from '@/arkham/droplets';
+import { createRainAudio, type RainAudioInstance } from '@/arkham/rainAudio';
+import { useSoundsDisabled } from '@/composable/useSoundsDisabled';
 import PoolItem from '@/arkham/components/PoolItem.vue';
 import { chaosTokenImage } from '@/arkham/types/ChaosToken';
 import { homebrewTotalsTokens } from '@/arkham/homebrewData';
@@ -99,6 +103,72 @@ const update = async (game: Game) => emit('update', game)
 
 //Refs
 const settingsStore = useSettings()
+
+// Riddles and Rain. Only once EndSetup has run, so the rain starts with the
+// scenario rather than over the setup screens. RainOverlay additionally
+// requires html-in-canvas, without which it renders nothing and just passes the
+// board through untouched.
+// Only worth offering a switch where the effect can actually render; without
+// html-in-canvas the drops have nothing to refract and RainOverlay draws
+// nothing at all.
+const rainSupported = supportsHtmlInCanvas()
+const rainEnabled = ref(getGameLocalStorageItem(props.game.id, 'rainEnabled') !== 'false')
+
+watch(rainEnabled, (value) => {
+  setGameLocalStorageItem(props.game.id, 'rainEnabled', value ? 'true' : 'false')
+})
+
+const rainAvailable = computed(() =>
+  props.game.scenario?.id === 'c09501' &&
+  !props.game.inSetup &&
+  rainSupported &&
+  settingsStore.extraAnimations
+)
+
+const showRain = computed(() => rainAvailable.value && rainEnabled.value)
+
+// Ambient rain, tied to the same switch as the visuals and to the global Sounds
+// preference. Built lazily so no AudioContext exists for anyone who never sees
+// the effect.
+const { soundsDisabled } = useSoundsDisabled()
+const rainAudioWanted = computed(() => showRain.value && !soundsDisabled.value)
+let rainAudio: RainAudioInstance | null = null
+let rainAudioUnavailable = false
+
+watch(rainAudioWanted, (wanted) => {
+  if (!wanted) {
+    rainAudio?.stop()
+    return
+  }
+  if (!rainAudio && !rainAudioUnavailable) {
+    rainAudio = createRainAudio()
+    rainAudioUnavailable = rainAudio === null
+  }
+  void rainAudio?.start()
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  rainAudio?.destroy()
+  rainAudio = null
+})
+
+// From the canvasui playground: slow, thin, sparse. Note this sits at the
+// bottom of the effect's usable range — at intensity 0.2 the first rain layer,
+// S(0.25, 0.75, intensity), is exactly zero, so only the second draws and its
+// coverage lands right against the shader's hard S(0.3, 1.0) cull. Lower and
+// the rain disappears rather than thinning; to reduce it further lower `scale`
+// (drop count goes with its square) instead.
+const rainOptions = {
+  intensity: 0.45,
+  speed: 0.4,
+  // Density comes off `scale`, not `intensity`: intensity feeds the
+  // S(0.25, 0.75) and S(0.0, 0.5) layer ramps, and dropping it switches whole
+  // layers off rather than thinning them. Drop count goes with scale squared.
+  scale: 0.28,
+  staticDrops: 0.1,
+  dropWidth: 0.8,
+  fallSpeed: 0.6,
+}
 const { splitView } = storeToRefs(settingsStore)
 const { toggleSplitView, setGameId } = settingsStore
 const needsInit = ref(true)
@@ -1127,7 +1197,11 @@ async function recordSpokenHastur() {
   })
 }
 
-const showScenarioNotifierBar = computed(() => scenarioBadges.value.length > 0 || props.realityAcidLightDevoured === true)
+// The rain switch lives in this bar, so the bar has to appear for it even when
+// there are no other badges and no reality-acid switch.
+const showScenarioNotifierBar = computed(
+  () => scenarioBadges.value.length > 0 || props.realityAcidLightDevoured === true || rainAvailable.value
+)
 
 watch(
   () => [props.realityAcidLightDevoured, props.realityAcidLightActive, scenarioBadges.value.length],
@@ -2568,6 +2642,21 @@ async function addChaosToken(face: any){
               <small v-if="badge.detail">{{ badge.detail }}</small>
             </span>
           </div>
+          <button
+            v-if="rainAvailable"
+            type="button"
+            class="scenario-badge rain-switch"
+            :class="{ 'rain-switch--on': rainEnabled }"
+            :title="rainEnabled ? 'Stop the rain' : 'Let it rain'"
+            @click="rainEnabled = !rainEnabled"
+          >
+            <span class="rain-switch-track" aria-hidden="true">
+              <span class="rain-switch-knob"></span>
+            </span>
+            <span class="scenario-badge-text rain-switch-label">
+              <strong>{{ rainEnabled ? 'Rain on' : 'Rain off' }}</strong>
+            </span>
+          </button>
           <span
             v-if="realityAcidLightDevoured"
             ref="realityAcidLightAnchor"
@@ -2614,6 +2703,7 @@ async function addChaosToken(face: any){
       </div>
 
 
+      <RainOverlay :enabled="showRain" :options="rainOptions">
       <div
         ref="locationCardsContainer"
         class="location-cards-container"
@@ -2628,9 +2718,17 @@ async function addChaosToken(face: any){
         }"
         @dblclick.passive="toggleZoom"
       >
-        <!-- ponytail: fullscreen mirror of the player-zone zoom-control; duplicated markup
-             beats prop-drilling ~10 handlers into a shared child. Keep the two in sync. -->
-        <div v-if="locationsFullscreen" class="zoom-control zoom-control--fullscreen">
+        <!-- ponytail: in-board mirror of the player-zone zoom-control; duplicated markup
+             beats prop-drilling ~10 handlers into a shared child. Keep the two in sync.
+             Used for fullscreen (floating, top right) and for split view, where the
+             player zone is too narrow for it and it docks to the bottom of the board
+             instead. The player-zone copy hides itself in split view. -->
+        <div
+          v-if="locationsFullscreen || splitView"
+          class="zoom-control"
+          :class="locationsFullscreen ? 'zoom-control--fullscreen' : 'zoom-control--docked'"
+          @dblclick.stop
+        >
           <button class="zoom-btn" @pointerdown.stop="startHold(decreaseZoom)" @pointerup="stopHold" @pointerleave="stopHold">−</button>
           <input v-model.number="locationsZoom" type="range" min="0.25" max="6" step="0.05" class="zoom-slider" />
           <button class="zoom-btn" @pointerdown.stop="startHold(increaseZoom)" @pointerup="stopHold" @pointerleave="stopHold">+</button>
@@ -2652,11 +2750,13 @@ async function addChaosToken(face: any){
             <ArrowUturnLeftIcon class="zoom-btn__icon" />
           </button>
           <button
-            class="zoom-btn zoom-btn--active"
-            @click.stop="locationsFullscreen = false"
-            v-tooltip="'Exit fullscreen locations (Esc)'"
+            class="zoom-btn"
+            :class="{ 'zoom-btn--active': locationsFullscreen }"
+            @click.stop="locationsFullscreen = !locationsFullscreen"
+            v-tooltip="locationsFullscreen ? 'Exit fullscreen locations (Esc)' : 'Expand locations to full screen'"
           >
-            <ArrowsPointingInIcon class="zoom-btn__icon" />
+            <ArrowsPointingInIcon v-if="locationsFullscreen" class="zoom-btn__icon" />
+            <ArrowsPointingOutIcon v-else class="zoom-btn__icon" />
           </button>
         </div>
         <div
@@ -2782,6 +2882,7 @@ async function addChaosToken(face: any){
         </div>
         </div>
       </div>
+      </RainOverlay>
 
       <div id="player-zone" :class="{ 'player-zone--fullscreen': locationsFullscreen }">
         <PlayerTabs
@@ -2793,7 +2894,7 @@ async function addChaosToken(face: any){
           :tarotCards="props.scenario.tarotCards"
           @choose="choose"
         >
-          <div class="zoom-control">
+          <div v-if="!splitView" class="zoom-control">
             <button class="zoom-btn" @pointerdown.stop="startHold(decreaseZoom)" @pointerup="stopHold" @pointerleave="stopHold">−</button>
             <input v-model.number="locationsZoom" type="range" min="0.25" max="6" step="0.05" class="zoom-slider" />
             <button class="zoom-btn" @pointerdown.stop="startHold(increaseZoom)" @pointerup="stopHold" @pointerleave="stopHold">+</button>
@@ -3035,7 +3136,14 @@ async function addChaosToken(face: any){
       flex-wrap: wrap;
     }
 
-    .location-cards-container {
+    /* RainOverlay wraps the locations container when html-in-canvas is
+       available, which makes ITS host the grid item. Place both, so the
+       placement survives whether or not the wrapper is present. No :deep()
+       needed — Vue stamps this component's scope id onto a child component's
+       root element, and :deep() would compile to a descendant selector that
+       cannot match a direct child of .scenario-body. */
+    .location-cards-container,
+    .rain-host {
       grid-column: 2;
       grid-row: 1 / 3;
     }
@@ -3144,6 +3252,22 @@ async function addChaosToken(face: any){
   inset: 0;
   z-index: var(--z-index-50);
   background: var(--background);
+}
+
+/* Split view: docked to the bottom of the locations board. Positioned against
+   .location-cards-container, which is the relative ancestor whether or not the
+   rain overlay is wrapping it. Deliberately does NOT force display, so the
+   coarse-pointer rule on .zoom-control still hides it on touch exactly as the
+   player-zone copy does today. */
+.zoom-control--docked {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  z-index: var(--z-index-10, 10);
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .zoom-control--fullscreen {
@@ -3476,6 +3600,55 @@ async function addChaosToken(face: any){
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.58rem;
+}
+
+.rain-switch {
+  pointer-events: auto;
+  cursor: pointer;
+  border-color: rgb(255 255 255 / 24%);
+  border-left-color: rgb(150 195 235 / 90%);
+  background: rgb(32 36 42 / 98%);
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 90%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 65%);
+}
+
+.rain-switch--on {
+  box-shadow:
+    inset 0 0 12px rgb(150 195 235 / 16%),
+    0 0 0 1px rgb(150 195 235 / 14%),
+    0 0 18px rgb(150 195 235 / 32%),
+    0 2px 8px rgb(0 0 0 / 65%);
+}
+
+.rain-switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #48607a;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 35%);
+  transition: background 0.15s ease;
+}
+
+.rain-switch--on .rain-switch-track {
+  background: #8fc0e6;
+}
+
+.rain-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1d2229;
+  transition: left 0.15s ease;
+}
+
+.rain-switch--on .rain-switch-knob {
+  left: 18px;
 }
 
 .reality-acid-light-switch-anchor {

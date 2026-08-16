@@ -74,7 +74,6 @@ import Control.Lens (view)
 import Control.Monad.Random (mkStdGen)
 import Data.Aeson.Types (parse)
 import Data.ByteString.Lazy qualified as BSL
-import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.String.Conversions.Monomorphic (toStrictByteString)
@@ -84,23 +83,23 @@ import Data.Time.Clock
 import Data.Traversable (for)
 import Data.UUID (nil)
 import Database.Esqueleto.Experimental hiding (update, (=.))
-import Database.Redis (RedisChannel, msgMessage, pubSub, publish, runRedis, subscribe)
+import Database.Redis (Connection, RedisChannel, publish, runRedis)
 import Entity.Answer
 import Entity.Arkham.GameRaw
 import Entity.Arkham.Step
 import Import hiding (delete, exists, on, (==.), (>=.))
 import Import qualified as P
 import Json
+
 -- ConnectionOptions, connectionCompressionOptions and defaultConnectionOptions
 -- come in via the Yesod.WebSockets re-export below.
 import Network.WebSockets (
   CompressionOptions (PermessageDeflateCompression),
   ConnectionException,
-  PermessageDeflate (clientNoContextTakeover, pdCompressionLevel, serverNoContextTakeover),
+  PermessageDeflate (pdCompressionLevel),
   defaultPermessageDeflate,
   withPingThread,
  )
-import UnliftIO.Async (async, cancel)
 import UnliftIO.Exception hiding (Handler)
 import UnliftIO.Timeout (timeout)
 import Yesod.WebSockets
@@ -119,31 +118,67 @@ until now. permessage-deflate takes a 206 KB payload to ~33 KB (6.3x).
 Browsers offer the extension on every websocket handshake and negotiate it
 themselves, so this needs no client change.
 
-Context takeover is disabled in both directions. Leaving it on (the library
-default) lets each message compress against the previous one's history, but
-deflate's window is 32 KB while our messages are several times that, so the
-previous message is almost entirely evicted before the next one can reference
-it: measured against a real 206 KB payload, takeover bought a further 2%. The
-cost is a zlib deflate+inflate pair (~400 KB) pinned per connection for the
-life of the socket, which across a few hundred concurrent players is real
-memory against the pod's 2Gi limit. Not a trade worth 2%.
+DO NOT set 'serverNoContextTakeover' (or 'clientNoContextTakeover') here. They
+read like pure memory/ratio knobs and are not: in @websockets@ they select
+between two completely different deflaters.
 
-The compression level is 6 rather than the library's 8 for the same reason.
-Compression is per connection, so a four-player table deflates the same state
-four times on every action; on a 206 KB payload level 8 measured 4.0 ms and
-32.6 KB against level 6's 2.4 ms and 33.3 KB.
+> makeMessageDeflater (Just pmd)
+>     | serverNoContextTakeover pmd = do
+>         return $ \msg -> do
+>             ptr <- initDeflate pmd        -- per MESSAGE
+>             deflateMessageWith (deflateBody ptr) msg
+>     | otherwise = do
+>         ptr <- initDeflate pmd            -- per CONNECTION
+>         return $ \msg -> deflateMessageWith (deflateBody ptr) msg
+
+'initDeflate' is @Zlib.initDeflate level (WindowBits -15)@, a fresh zlib
+arena (~256 KB at level 6 / memLevel 8) malloc'd and initialised. With
+takeover disabled that happens for every outbound frame, on every connection,
+with no minimum-size threshold -- and 'handleMessageLog' broadcasts one frame
+per 'ClientMessage', which during scenario setup is hundreds of ~100 byte log
+lines. Each one paid a 256 KB zlib setup to compress 100 bytes.
+
+That churn is also worse for memory than the thing disabling takeover was
+meant to avoid. Takeover costs a deflate+inflate pair (~400 KB) pinned per
+socket but reused; disabling it allocates and frees ~256 KB per message, as
+foreign memory behind a tiny Haskell object, so the GC has almost no pressure
+signal to run the finalisers promptly. Lower peak, far higher RSS drift -- and
+the HPA scales on memory.
+
+The ratio argument for disabling it was sound but immaterial: deflate's window
+is 32 KB against messages several times that, so the previous message is
+mostly evicted before the next can reference it and takeover bought only ~2%.
+That is a reason not to *expect* much from takeover, not a reason to pay
+per-message zlib setup to avoid it.
+
+Nothing in negotiation re-enables these: @setParam@ only ever sets them from
+the client's offered params, and browsers offer @client_max_window_bits@
+without either takeover flag.
+
+The compression level is 6 rather than the library's 8. Compression is per
+connection, so a four-player table deflates the same state four times on every
+action; on a 206 KB payload level 8 measured 4.0 ms and 32.6 KB against level
+6's 2.4 ms and 33.3 KB.
 -}
 compressedConnectionOptions :: ConnectionOptions
 compressedConnectionOptions =
   defaultConnectionOptions
     { connectionCompressionOptions =
         PermessageDeflateCompression
-          defaultPermessageDeflate
-            { serverNoContextTakeover = True
-            , clientNoContextTakeover = True
-            , pdCompressionLevel = 6
-            }
+          defaultPermessageDeflate {pdCompressionLevel = 6}
     }
+
+{- | 'ConnectionOptions' for a game or event socket, honouring the
+@ARKHAM_WS_COMPRESSION@ kill switch (see 'appWebsocketCompression').
+
+Compression is a per-message CPU and allocation cost on a path that is hard
+to reproduce outside production, so it needs to be switchable there without a
+rebuild: set @ARKHAM_WS_COMPRESSION=false@ and restart to compare.
+-}
+websocketConnectionOptions :: Handler ConnectionOptions
+websocketConnectionOptions = do
+  enabled <- getsYesod $ appWebsocketCompression . appSettings
+  pure $ if enabled then compressedConnectionOptions else defaultConnectionOptions
 
 {- | Warp treats a websocket as a raw response and only tickles its idle
 timeout on real socket traffic, so a quiet game (nobody taking a turn) is
@@ -159,43 +194,26 @@ withKeepAlive inner = do
 
 gameStream :: ArkhamGameId -> WebSocketsT Handler ()
 gameStream gameId = catchingConnectionException $ withKeepAlive do
-  room <- lift $ getRoom gameId
-  broker <- lift $ getsYesod appMessageBroker
-  let broadcast = broadcastToRoom room
-
-  let cleanup subId = do
+  let cleanup room subId = do
         unsubscribeFromRoom room subId
         lift $ decrRoomMember gameId
-        -- If this was the last subscriber, drop the room from the map so
-        -- it doesn't accumulate orphaned entries.
-        isEmpty <- liftIO $ atomically do
-          IntMap.null <$> readTVar (roomSubscribers room)
-        when isEmpty do
-          roomsVar <- lift $ getsYesod appGameRooms
-          liftIO $ modifyMVar_ roomsVar $ pure . Map.delete gameId
-          lift $ removeChannel (gameChannel gameId)
+        -- Drops the room AND its Redis subscription together, under the rooms
+        -- lock, if this was the last subscriber. The room owns the one
+        -- subscription for this channel on this pod; this connection has no
+        -- subscription of its own to tear down.
+        void $ lift $ releaseGameRoomIfEmpty gameId
 
+  -- Joining registers this socket as a subscriber in the same turn of the
+  -- rooms lock that looks the room up, so a concurrently departing connection
+  -- can't release the room before we are counted on it.
   let acquire = do
-        s <- subscribeToRoom room
+        joined <- lift $ joinGameRoom gameId
         lift $ incrRoomMember gameId
-        pure s
+        pure joined
 
-  bracket acquire (\(subId, _) -> cleanup subId) \(_subId, sub) -> do
+  bracket acquire (\(room, subId, _) -> cleanup room subId) \(room, _subId, sub) -> do
+    let broadcast = broadcastToRoom room
     let Subscriber {subQueue, subOverflow} = sub
-    mtid <- case broker of
-      RedisBroker redisConn _ -> do
-        tid <- liftIO
-          $ async
-          $ runRedis redisConn
-          $ pubSub (subscribe [gameChannel gameId])
-          $ \msg -> do
-            broadcast (BSL.fromStrict $ msgMessage msg)
-            pure mempty
-        pure $ Just tid
-      WebSocketBroker -> pure Nothing
-
-    let stopSub = maybe (pure ()) (liftIO . cancel) mtid
-
     let sender =
           forever
             ( do
@@ -208,12 +226,9 @@ gameStream gameId = catchingConnectionException $ withKeepAlive do
             )
             `catch` (\(_ :: SlowSubscriber) -> pure ())
 
-    finally
-      ( race_
-          sender
-          (runConduit $ sourceWS .| mapM_C (handleData room broadcast))
-      )
-      stopSub
+    race_
+      sender
+      (runConduit $ sourceWS .| mapM_C (handleData room broadcast))
  where
   handleData room broadcast dataPacket = lift do
     case eitherDecodeStrict dataPacket of
@@ -230,36 +245,26 @@ catchingConnectionException :: WebSocketsT Handler () -> WebSocketsT Handler ()
 catchingConnectionException f =
   f `catch` \e -> $(logWarn) $ tshow (e :: ConnectionException)
 
-{- | Generic read-only room subscription loop: bridge the Redis channel into the
-room, fan room messages out to this websocket, and run @onLastLeave@ when the
-final subscriber disconnects. Inbound client frames are ignored (read-only).
-Used by the Epic Multiplayer event stream; 'gameStream' has its own variant
-with per-game member counting and a log cache.
+{- | Generic read-only room subscription loop: fan room messages out to this
+websocket and run @onLeave@ when it disconnects. Inbound client frames are
+ignored (read-only). Used by the Epic Multiplayer event stream; 'gameStream'
+has its own variant with per-game member counting and a log cache.
+
+@joinRoom@ must register this socket as a subscriber atomically with looking
+the room up (see 'joinRoomIn'); the room's single Redis subscription is
+established there and torn down by 'releaseRoomIfEmpty', so nothing is
+subscribed per connection here. @onLeave@ runs on every disconnect, not only
+the last one: deciding whether this was in fact the last subscriber has to
+happen under the rooms lock, so it can't be decided out here.
 -}
 streamRoom
-  :: RedisChannel -> Room -> WebSocketsT Handler () -> WebSocketsT Handler ()
-streamRoom channel room onLastLeave = catchingConnectionException $ withKeepAlive do
-  broker <- lift $ getsYesod appMessageBroker
-  let broadcast = broadcastToRoom room
-  let cleanup subId = do
+  :: Handler (Room, Int, Subscriber) -> Handler () -> WebSocketsT Handler ()
+streamRoom joinRoom onLeave = catchingConnectionException $ withKeepAlive do
+  let cleanup room subId = do
         unsubscribeFromRoom room subId
-        isEmpty <- liftIO $ atomically $ IntMap.null <$> readTVar (roomSubscribers room)
-        when isEmpty onLastLeave
-  bracket (subscribeToRoom room) (\(subId, _) -> cleanup subId) \(_subId, sub) -> do
+        lift onLeave
+  bracket (lift joinRoom) (\(room, subId, _) -> cleanup room subId) \(_room, _subId, sub) -> do
     let Subscriber {subQueue, subOverflow} = sub
-    mtid <- case broker of
-      RedisBroker redisConn _ -> do
-        tid <-
-          liftIO
-            $ async
-            $ runRedis redisConn
-            $ pubSub (subscribe [channel])
-            $ \msg -> do
-              broadcast (BSL.fromStrict $ msgMessage msg)
-              pure mempty
-        pure $ Just tid
-      WebSocketBroker -> pure Nothing
-    let stopSub = maybe (pure ()) (liftIO . cancel) mtid
     let sender =
           forever
             ( do
@@ -269,9 +274,7 @@ streamRoom channel room onLastLeave = catchingConnectionException $ withKeepAliv
                 sendTextData msg
             )
             `catch` (\(_ :: SlowSubscriber) -> pure ())
-    finally
-      (race_ sender (runConduit $ sourceWS .| mapM_C (\(_ :: ByteString) -> pure ())))
-      stopSub
+    race_ sender (runConduit $ sourceWS .| mapM_C (\(_ :: ByteString) -> pure ()))
 
 data GetGameJson = GetGameJson
   { playerId :: Maybe PlayerId
@@ -693,17 +696,34 @@ publishToRoom gameId a = do
   broker <- getsApp appMessageBroker
   case broker of
     RedisBroker redisConn _ ->
-      void
-        $ liftIO
-        $ runRedis redisConn
-        $ publish (gameChannel gameId)
-        $ toStrictByteString
-        $ encode a
+      publishOrWarn redisConn (gameChannel gameId) a
     WebSocketBroker ->
       -- Don't create a Room here. If nobody is subscribed, drop the
       -- update on the floor; the next subscriber will read the latest
       -- state from the database when they connect.
       lookupRoom gameId >>= traverse_ (`broadcastToRoom` encode a)
+
+{- | PUBLISH a payload, surfacing failures instead of swallowing them.
+
+'runRedis' returns @Left Reply@ for a rejected command, and this was
+previously @void@ed away. A GameUpdate that never leaves the pod looks
+identical, from the client's side, to one that was never generated -- the
+board simply stops updating -- so a dropped publish has to leave a trace.
+-}
+publishOrWarn :: (MonadIO m, ToJSON a) => Connection -> RedisChannel -> a -> m ()
+publishOrWarn conn channel a = liftIO do
+  result <-
+    tryAny
+      $ runRedis conn
+      $ publish channel
+      $ toStrictByteString
+      $ encode a
+  case result of
+    Right (Right _) -> pure ()
+    Right (Left reply) ->
+      putStrLn $ "redis publish rejected on " <> show channel <> ": " <> show reply
+    Left e ->
+      putStrLn $ "redis publish failed on " <> show channel <> ": " <> show e
 
 -- | Epic Multiplayer sibling of 'publishToRoom', keyed by event id.
 publishToEventRoom :: (MonadIO m, ToJSON a, HasApp m) => ArkhamEpicEventId -> a -> m ()
@@ -711,12 +731,7 @@ publishToEventRoom eid a = do
   broker <- getsApp appMessageBroker
   case broker of
     RedisBroker redisConn _ ->
-      void
-        $ liftIO
-        $ runRedis redisConn
-        $ publish (eventChannel eid)
-        $ toStrictByteString
-        $ encode a
+      publishOrWarn redisConn (eventChannel eid) a
     WebSocketBroker ->
       lookupEventRoom eid >>= traverse_ (`broadcastToRoom` encode a)
 
@@ -1310,12 +1325,20 @@ toGameDetailsEntry (Entity gameId game) playerCount =
     Error _ -> mempty
     Success (attrs :: CampaignAttrs) -> map (`lookupInvestigator` PlayerId nil) $ Map.keys attrs.decks
 
+{- | Force-drop a room when the underlying game is deleted, regardless of who is
+still connected. Unlike 'releaseGameRoomIfEmpty' this ignores the subscriber
+count, but it must still tear the Redis subscription down or the controller
+keeps a callback for a channel nothing will ever publish to again.
+-}
 deleteRoom :: ArkhamGameId -> Handler ()
-deleteRoom gameId = do
-  roomsVar <- getsYesod appGameRooms
-  liftIO $ modifyMVar_ roomsVar $ pure . Map.delete gameId
+deleteRoom = forceDeleteRoom appGameRooms
 
 deleteEventRoom :: ArkhamEpicEventId -> Handler ()
-deleteEventRoom eid = do
-  roomsVar <- getsYesod appEventRooms
-  liftIO $ modifyMVar_ roomsVar $ pure . Map.delete eid
+deleteEventRoom = forceDeleteRoom appEventRooms
+
+forceDeleteRoom :: Ord k => (App -> MVar (Map k Room)) -> k -> Handler ()
+forceDeleteRoom roomsOf key = do
+  roomsVar <- getsYesod roomsOf
+  liftIO $ modifyMVar_ roomsVar \rooms -> do
+    for_ (Map.lookup key rooms) $ tryRedis_ . join . readTVarIO . roomUnsubscribe
+    pure $ Map.delete key rooms

@@ -7371,6 +7371,7 @@ test-suite spec
       Arkham.Asset.Assets.Hyperawareness2Spec
       Arkham.Asset.Assets.HyperawarenessSpec
       Arkham.Asset.Assets.JennysTwin45sSpec
+      Arkham.Asset.Assets.JimCulver4Spec
       Arkham.Asset.Assets.JimsTrumpetSpec
       Arkham.Asset.Assets.KeyOfMysteriesSpec
       Arkham.Asset.Assets.KnifeSpec
@@ -7403,6 +7404,7 @@ test-suite spec
       Arkham.Asset.Assets.ResearchLibrarianSpec
       Arkham.Asset.Assets.Rolands38SpecialSpec
       Arkham.Asset.Assets.RunicAxeSpec
+      Arkham.Asset.Assets.Safeguard2Spec
       Arkham.Asset.Assets.ScavengingSpec
       Arkham.Asset.Assets.ScryingSpec
       Arkham.Asset.Assets.SegmentOfOnyx1Spec
@@ -7440,6 +7442,7 @@ test-suite spec
       Arkham.Campaign.TheScarletKeys.ConcealedSpec
       Arkham.Campaign.UsedAbilitiesSpec
       Arkham.CampaignLogKeySpec
+      Arkham.Card.CardCodeSpec
       Arkham.ChaosTokenFaceSpec
       Arkham.DecklistSpec
       Arkham.EncounterSetSpec
@@ -7561,6 +7564,7 @@ test-suite spec
       Arkham.Location.Cards.DreamGatePointlessRealitySpec
       Arkham.Location.Cards.DreamGateWondrousJourneySpec
       Arkham.Location.Cards.EnchantedWoodsVillageOfZoogsSpec
+      Arkham.Location.Cards.UndergroundRiverSpec
       Arkham.Location.TypesSpec
       Arkham.Matcher.CoveredByAnyInPlayEnemySpec
       Arkham.Matcher.LegacyJSONSpec

@@ -73,7 +73,10 @@ function formatEntry(t: ComposerTranslation, entry: FlavorTextEntry, classes: { 
       } else {
         return h('h3', { class: classes, innerHTML: formatContent(t(entry.key)) })
       }
-    case 'I18nEntry': return h('div', { innerHTML: formatContent(t(entry.key, {...entry.variables, setImgPath: `${baseUrl}/img/arkham/encounter-sets` })) })
+    // `setImgPath` points at the core encounter-set icons; homebrew campaigns keep
+    // their icons under their own directory (see vite.config.js), so they build the
+    // path from `imgPath` instead: {imgPath}/homebrew/<campaign>/sets/<set>.png
+    case 'I18nEntry': return h('div', { innerHTML: formatContent(t(entry.key, {...entry.variables, imgPath: `${baseUrl}/img/arkham`, setImgPath: `${baseUrl}/img/arkham/encounter-sets` })) })
     case 'ModifyEntry': {
       const styles = entryStyles(entry)
       if (styles.codex) {
@@ -239,6 +242,10 @@ export default defineComponent({
       border-bottom: 0;
     }
   }
+}
+
+.green.trace, :deep(.green.trace) {
+  margin-block: 20px;
 }
 
 .green, :deep(.green), p.green, :deep(p.green) {
@@ -1384,6 +1391,38 @@ div:has(> img.remove) {
     --card-w: 140px;
     --spread: 11deg;
     --shift: -44px;
+  }
+}
+
+:deep(.story-card-rule) {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+
+  > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  > img {
+    flex: 0 1 min(33.333%, 200px);
+    width: min(33.333%, 200px);
+    min-width: 0;
+    max-width: 200px;
+    height: auto;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 300px) {
+  :deep(.story-card-rule) {
+    flex-direction: column;
+
+    > img {
+      flex-basis: auto;
+      width: 100%;
+      min-width: 0;
+    }
   }
 }
 

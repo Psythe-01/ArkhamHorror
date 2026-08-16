@@ -59,6 +59,7 @@ import { useMenu } from '@/composable/menu'
 import useEmitter from '@/composable/useEmitter'
 import { useDebug } from '@/arkham/debug'
 import { cardImg, imgsrc } from '@/arkham/helpers'
+import { cardFaceImages, cardHasDistinctBack } from '@/arkham/cardImages'
 import { handleEmbeddedI18n } from '@/arkham/i18n'
 import { getGameLocalStorageItem, setGameLocalStorageItem } from '@/arkham/localStorage'
 import * as Arkham from '@/arkham/types/Game'
@@ -738,9 +739,17 @@ const onError = () => {
   }
   socketError.value = true
 }
+let hasConnectedOnce = false
+
 const onConnected = () => {
   socketError.value = false
   processing.value = false
+  // Anything published while the socket was down is gone -- the server drops
+  // updates for rooms with no subscriber rather than buffering them. On a
+  // RECONNECT (not the initial connect, which the page load already fetched
+  // for) pull the current state so we can't sit on a stale board.
+  if (hasConnectedOnce) void resyncGame()
+  hasConnectedOnce = true
 }
 
 const onMessage = (_ws: WebSocket, event: MessageEvent) => {
@@ -894,8 +903,7 @@ function sendSkipFor(targetPlayerId: string, choiceIdx: number) {
   oldQuestion.value = game.value.question
   const questionVersion = game.value.scenarioSteps
   setGameQuestion({})
-  processing.value = true
-  send(
+  sendAnswer(
     JSON.stringify({
       tag: 'Answer',
       contents: { choice: choiceIdx, playerId: targetPlayerId, questionVersion },
@@ -923,6 +931,74 @@ const { send, close } = useWebSocket(websocketUrl, {
   onConnected,
   onMessage,
 })
+
+/*
+ * A GameUpdate is the only message carrying new board state, and it reaches us
+ * over a different path than the log lines do: the server broadcasts log lines
+ * in-process, but publishes GameUpdate through Redis pub/sub so it can reach
+ * other pods. When that path breaks, the failure is silent and deeply
+ * confusing -- log lines keep scrolling while the board freezes, so it reads
+ * as "the server ignored my click" and invites the player to click again.
+ *
+ * We resync on RECONNECT ONLY. There is deliberately no timer here.
+ *
+ * There used to be one: every answer armed a watchdog that refetched over REST
+ * if no GameUpdate arrived in time. Do not reintroduce it. It is a retry storm
+ * with a trigger threshold, and on 2026-08-15 it took the site down.
+ *
+ * The mechanism: the timer fired a full fetchGame -- the most expensive endpoint
+ * we have, the entire game plus log -- per client, per answer, up to four times.
+ * Actions hold a transaction and a FOR UPDATE lock on the game row for all of
+ * runMessages, so those refetches compete for the very connection pool the
+ * stalled actions are occupying. Once latency crossed the threshold, every
+ * waiting client ADDED load, which pushed latency higher, which fired more
+ * watchdogs. Positive feedback, ending in 30s RunMessagesTimeouts.
+ *
+ * Note the shape of that failure: below the threshold nothing fires and
+ * everything is healthy, so it presents as a cliff rather than a slope. It
+ * looked like a regression that "started at 10pm" when it was really a capacity
+ * ceiling finally letting normal latency cross 5s. Raising the threshold only
+ * moves the cliff; it does not remove it.
+ *
+ * And the timer was largely redundant anyway. The silent-dead-subscriber case it
+ * was written for is detected and repaired server-side by the pub/sub heartbeat
+ * on arkham:pubsub:health (see pubSubSupervisor in Api.Arkham.Helpers), which
+ * tears down and resubscribes a connection that stops delivering. A client-side
+ * timer second-guessing that buys little and costs a stampede.
+ *
+ * If a future silent-loss bug does need client cover, make it cheap and
+ * self-limiting -- probe a few bytes of current step and only fetch the whole
+ * game when it actually advanced, with jitter so clients cannot synchronise.
+ */
+let resyncing = false
+
+/*
+ * Pull current state over REST and apply it. Called on reconnect, where whatever
+ * the server currently holds is authoritative: anything published while the
+ * socket was down is gone, because the server drops updates for rooms with no
+ * subscriber rather than buffering them.
+ */
+async function resyncGame() {
+  if (resyncing) return
+  resyncing = true
+  try {
+    const { game: refetched } = await fetchGame(props.gameId, props.spectate)
+    applyGameUpdate(refetched, uiLock.value)
+    updateGameLog(refetched.log)
+    processing.value = false
+  } catch (e) {
+    console.error('Resync after reconnect failed', e)
+  } finally {
+    resyncing = false
+  }
+}
+
+// Every path that answers a question goes through here, so there is one place to
+// change if answering ever needs to do more than flip `processing`.
+function sendAnswer(payload: string) {
+  processing.value = true
+  send(payload)
+}
 
 const handleResult = (result: ServerResult) => {
   processing.value = false
@@ -1494,12 +1570,41 @@ function preloadImages(game: Arkham.Game): void {
 }
 
 async function loadAllImages(game: Arkham.Game): Promise<void> {
-  const pending: string[] = []
-  for (const card of Object.values(game.cards)) {
+  const cards = Object.values(game.cards)
+  const visibleImages = cards.map((card) => {
     const { cardCode, isFlipped } = toCardContents(card)
-    const url = cardImg(`${cardCode.replace(/^c/, '')}${isFlipped ? 'b' : ''}`)
-    if (!preloaded.has(url) && !preloading.has(url)) pending.push(url)
+    return cardImg(`${cardCode.replace(/^c/, '')}${isFlipped ? 'b' : ''}`)
+  })
+
+  // Start visible art immediately; card definitions may still be loading.
+  const visibleLoad = loadImages(visibleImages)
+  const cardDefs = store.loaded ? store.cards : await store.fetchCards()
+
+  if (cardDefs) {
+    const defsByCode = new Map<string, (typeof cardDefs)[number]>()
+    for (const cardDef of cardDefs) {
+      defsByCode.set(cardDef.cardCode.replace(/^c/, ''), cardDef)
+      defsByCode.set(cardDef.art.replace(/^c/, ''), cardDef)
+    }
+
+    const reverseImages = cards.flatMap((card) => {
+      const cardDef = defsByCode.get(toCardContents(card).cardCode.replace(/^c/, ''))
+      if (!cardDef || !cardHasDistinctBack(cardDef)) return []
+
+      const { front, back } = cardFaceImages(cardDef)
+      return back ? [front, back] : [front]
+    })
+    await Promise.all([visibleLoad, loadImages(reverseImages)])
+    return
   }
+
+  await visibleLoad
+}
+
+async function loadImages(urls: string[]): Promise<void> {
+  const pending = [...new Set(urls)].filter(
+    (url) => !preloaded.has(url) && !preloading.has(url),
+  )
   if (pending.length === 0) return
   pending.forEach((url) => preloading.add(url))
 
@@ -1551,8 +1656,7 @@ async function choose(idx: number) {
     if (!shouldPreserveFocusedChaosWindow() && !shouldPreserveFocusedCardChoice()) {
       setGameQuestion({})
     }
-    processing.value = true
-    send(
+    sendAnswer(
       JSON.stringify({
         tag: 'Answer',
         contents: { choice: idx, playerId: playerId.value, questionVersion },
@@ -1565,8 +1669,7 @@ async function chooseDeck(deckId: string): Promise<void> {
   if (game.value && !props.spectate) {
     oldQuestion.value = game.value.question
     setGameQuestion({})
-    processing.value = true
-    send(JSON.stringify({ tag: 'DeckAnswer', deckId, playerId: playerId.value }))
+    sendAnswer(JSON.stringify({ tag: 'DeckAnswer', deckId, playerId: playerId.value }))
   }
 }
 
@@ -1574,8 +1677,7 @@ async function chooseDeckList(deckList: object): Promise<void> {
   if (game.value && !props.spectate) {
     oldQuestion.value = game.value.question
     setGameQuestion({})
-    processing.value = true
-    send(JSON.stringify({ tag: 'DeckListAnswer', deckList, playerId: playerId.value }))
+    sendAnswer(JSON.stringify({ tag: 'DeckListAnswer', deckList, playerId: playerId.value }))
   }
 }
 
@@ -1584,8 +1686,7 @@ async function choosePaymentAmounts(amounts: Record<string, number>): Promise<vo
     oldQuestion.value = game.value.question
     const questionVersion = game.value.scenarioSteps
     setGameQuestion({})
-    processing.value = true
-    send(
+    sendAnswer(
       JSON.stringify({
         tag: 'PaymentAmountsAnswer',
         contents: { amounts, questionVersion, playerId: playerId.value },
@@ -1598,8 +1699,7 @@ async function scenarioSpecificAnswer(key: string, value: unknown): Promise<void
   if (game.value && !props.spectate) {
     oldQuestion.value = game.value.question
     setGameQuestion({})
-    processing.value = true
-    send(JSON.stringify({ tag: 'ScenarioSpecificAnswer', contents: [key, value] }))
+    sendAnswer(JSON.stringify({ tag: 'ScenarioSpecificAnswer', contents: [key, value] }))
   }
 }
 
@@ -1608,8 +1708,7 @@ async function chooseAmounts(amounts: Record<string, number>): Promise<void> {
     oldQuestion.value = game.value.question
     const questionVersion = game.value.scenarioSteps
     setGameQuestion({})
-    processing.value = true
-    send(
+    sendAnswer(
       JSON.stringify({
         tag: 'AmountsAnswer',
         contents: { amounts, questionVersion, playerId: playerId.value },

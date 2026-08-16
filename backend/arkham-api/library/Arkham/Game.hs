@@ -810,6 +810,7 @@ instance ToJSON gid => ToJSON (PublicGame gid) where
       <> ("activeCard" .= gameActiveCard)
       <> ("removedFromPlay" .= gameRemovedFromPlay)
       <> ("gameState" .= gameGameState)
+      <> ("inSetup" .= gameInSetup)
       <> ("skillTestResults" .= gameSkillTestResults)
       <> ("question" .= gameQuestion)
       <> ("cards" .= gameCards)
@@ -911,6 +912,7 @@ instance ToJSON gid => ToJSON (PublicGame gid) where
         , "activeCard" .= toJSON gameActiveCard
         , "removedFromPlay" .= toJSON gameRemovedFromPlay
         , "gameState" .= toJSON gameGameState
+        , "inSetup" .= toJSON gameInSetup
         , "skillTestResults" .= toJSON gameSkillTestResults
         , "question" .= toJSON gameQuestion
         , "cards" .= toJSON gameCards
@@ -5637,10 +5639,21 @@ instance Query ExtendedCardMatcher where
         mTurnInvestigator <- selectOne TurnInvestigator
         active <- selectJust ActiveInvestigator
         let iid = fromMaybe active mTurnInvestigator
+        -- The during-turn player window is not a CheckWindows, so once we are nested
+        -- inside any window (a PlayCard #after reaction, say) the stack no longer names
+        -- the turn context the play would actually happen in. Re-add what
+        -- 'Window.defaultWindows' -- the no-stack branch right above -- would have
+        -- supplied: the turn window for non-fast cards and the fast player window for
+        -- fast ones. Without the latter, "after you play an event" reactions that ask
+        -- whether the event is playable (Double, Double) rejected every fast event. See
+        -- #5410.
+        let turnWindows =
+              concat
+                [ [Window.duringTurnWindow tiid, Window.mkWhen Window.FastPlayerWindow]
+                | tiid <- toList mTurnInvestigator
+                ]
         windows' <-
-          maybe
-            (Window.defaultWindows iid)
-            (nub . ([Window.duringTurnWindow tiid | tiid <- toList mTurnInvestigator] <>) . concat)
+          maybe (Window.defaultWindows iid) (nub . (turnWindows <>) . concat)
             . gameWindowStack
             <$> getGame
         go cs matcher' >>= filterM (getIsPlayable active GameSource costStatus windows')

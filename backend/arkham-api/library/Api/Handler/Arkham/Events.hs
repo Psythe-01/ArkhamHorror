@@ -28,7 +28,6 @@ import Api.Arkham.Helpers
 import Api.Arkham.Types.MultiplayerVariant (MultiplayerVariant (WithFriends))
 import Api.Handler.Arkham.Games.Shared (
   broadcastSharedToEvent,
-  compressedConnectionOptions,
   deleteEventRoom,
   deleteRoom,
   getEventGroupContributions,
@@ -38,6 +37,7 @@ import Api.Handler.Arkham.Games.Shared (
   settleOrganizerAdvance,
   streamRoom,
   swapMainStreetInvestigators,
+  websocketConnectionOptions,
  )
 import Arkham.Agenda.Cards qualified as Agendas
 import Arkham.Agenda.Sequence qualified as Agenda
@@ -63,7 +63,6 @@ import Arkham.Message (Message (AdvanceToAgenda, ScenarioSpecific))
 import Arkham.Scenario.Types (Scenario, getMetaKeyDefault)
 import Arkham.Source (Source (GameSource))
 import Arkham.Target (Target (..))
-import Control.Concurrent.MVar (modifyMVar_)
 import Control.Monad.Random.Class (getRandom)
 import Data.Bits (shiftL, (.|.))
 import Data.Map.Strict qualified as Map
@@ -319,7 +318,8 @@ postApiV1ArkhamEventsR = do
 getApiV1ArkhamEventR :: ArkhamEpicEventId -> Handler EventDetails
 getApiV1ArkhamEventR eid = do
   userId <- getRequestUserId
-  webSocketsOptions compressedConnectionOptions $ eventStream eid
+  wsOptions <- websocketConnectionOptions
+  webSocketsOptions wsOptions $ eventStream eid
   void $ requireEventMember userId eid
   buildEventDetails userId eid
 
@@ -707,9 +707,7 @@ epicScenarioSeeds scenarioId total
 
 -- | The per-event websocket: a read-only feed of shared-state updates.
 eventStream :: ArkhamEpicEventId -> WebSocketsT Handler ()
-eventStream eid = do
-  room <- lift $ getEventRoom eid
-  streamRoom (eventChannel eid) room do
-    roomsVar <- lift $ getsYesod appEventRooms
-    liftIO $ modifyMVar_ roomsVar $ pure . Map.delete eid
-    lift $ removeChannel (eventChannel eid)
+eventStream eid =
+  -- Releases the room and its Redis subscription together, but only once the
+  -- last subscriber has actually gone; see 'releaseRoomIfEmpty'.
+  streamRoom (joinEventRoom eid) (void $ releaseEventRoomIfEmpty eid)

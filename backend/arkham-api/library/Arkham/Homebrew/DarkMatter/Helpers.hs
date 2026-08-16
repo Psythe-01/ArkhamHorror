@@ -11,6 +11,7 @@ import Arkham.Classes.HasGame
 import Arkham.Classes.HasQueue (push)
 import Arkham.Classes.Query (select, selectAny, selectCount, selectOne, selectWithField)
 import Arkham.Deck qualified as Deck
+import Arkham.Direction
 import Arkham.Draw.Types
 import Arkham.Enemy.Types (Field (EnemyCardsUnderneath))
 import {-# SOURCE #-} Arkham.Game ()
@@ -33,20 +34,33 @@ import Arkham.Homebrew.DarkMatter.Traits (pattern Brain, pattern Carcosa)
 import Arkham.I18n
 import Arkham.Id
 import Arkham.Investigator.Types (Field (InvestigatorLog, InvestigatorMentalTrauma))
-import Arkham.Location.Types (LocationAttrs)
+import Arkham.Location.Types (Field (LocationCard), LocationAttrs)
 import Arkham.LocationSymbol
 import Arkham.Matcher (
   AssetMatcher (AssetWithPlacement, AssetWithTrait),
   CardMatcher (AnyCard, CardWithTrait),
   EnemyMatcher (EnemyWithPlacement, IncludeOutOfPlayEnemy),
-  InvestigatorMatcher (InvestigatorCanGainXp),
-  LocationMatcher (LocationCanBeFlipped, LocationWithTitle, LocationWithTrait),
+  InvestigatorMatcher (InvestigatorAt, InvestigatorCanGainXp, InvestigatorWithId),
+  LocationMatcher (
+    LocationCanBeFlipped,
+    LocationInDirection,
+    LocationWithEnemy,
+    LocationWithId,
+    LocationWithTitle,
+    LocationWithToken,
+    LocationWithTrait
+  ),
   TreacheryMatcher (..),
+  WindowMatcher (ScenarioEvent),
   assetIs,
   connectedTo,
   enemyIs,
+  locationWithAsset,
   locationWithInvestigator,
+  mapOneOf,
   oneOf,
+  pattern LocationWithoutEnemies,
+  pattern LocationWithoutInvestigators,
  )
 import Arkham.Message (
   Message (
@@ -77,6 +91,7 @@ import Arkham.Scenario.Setup
 import Arkham.Source
 import Arkham.Story.Types (StoryAttrs)
 import Arkham.Target
+import Arkham.Token qualified as Token
 import Arkham.Trait (Trait (Cave, Crew))
 import Arkham.Window qualified as Window
 import Arkham.Xp
@@ -422,6 +437,18 @@ shuffleIntoScanningDeck :: (ReverseQueue m, IsCard card) => [card] -> m ()
 shuffleIntoScanningDeck cards =
   push $ ShuffleCardsIntoDeck (Deck.ScenarioDeckByKey ScanningDeck) (map toCard cards)
 
+shuffleEmptyUnstabilizedLocations :: ReverseQueue m => m ()
+shuffleEmptyUnstabilizedLocations = do
+  locations <-
+    select
+      $ LocationWithoutInvestigators
+      <> LocationWithoutEnemies
+      <> not_ (LocationWithToken Token.Resource)
+  for_ locations \lid -> do
+    card <- field LocationCard lid
+    shuffleIntoScanningDeck [card]
+    removeLocation lid
+
 -- ** The Evidence deck (In the Shadow of Earth) ** --
 
 {- | Ship Mainframe and Telecoms both print "Draw the top card of the 'Evidence'
@@ -509,17 +536,73 @@ getCrewAttachedToTheEntity = do
 getCrewInScanningDeck :: HasGame m => m [Card]
 getCrewInScanningDeck = filterCards (CardWithTrait Crew) <$> getScanningDeck
 
-{- | Payload of the @"switched"@ ScenarioEvent (Electric Nightmare): the two
-locations that traded places. Cards whose text names *their own* location —
-"After Glitch in the System's location is switched…" — must check this, or they
-fire on every switch anywhere on the map.
+{- | The broad @"switched"@ ScenarioEvent (Electric Nightmare): two locations
+traded places. Only for cards that care about *any* switch.
 -}
 switchedEvent :: Text
 switchedEvent = "switched"
 
+{- | Narrower key for a card whose text names *its own* location — "After Glitch
+in the System's location is switched…", "After Entrance Hall is switched…". A
+handler-side check on the payload is too late: the ability is offered (or enters
+the forced-trigger ordering) after every switch anywhere on the map, so the
+condition has to live in the window key.
+-}
+switchedEventFor :: LocationId -> Text
+switchedEventFor lid = switchedEvent <> "[" <> tshow lid <> "]"
+
+{- | Narrower key for "After *your* location is switched…" — fired once per
+investigator standing at either of the two locations, carrying that
+investigator, so cards match with @ScenarioEvent #after (Just You)@. Their
+location is not knowable when abilities are collected, so the location-keyed
+variant above cannot serve them.
+-}
+switchedEventForInvestigator :: Text
+switchedEventForInvestigator = switchedEvent <> "[investigator]"
+
+{- | The window for a card that reacts to *its own* location being switched,
+picked from where the card actually sits.
+
+An enemy is only @AtLocation@ while it is unengaged; the moment it engages an
+investigator its placement becomes 'InThreatArea' and there is no location id
+left to key on. The per-investigator window covers that case exactly: it fires
+for each investigator standing at either switched location, and an enemy in a
+threat area is at its investigator's location by definition.
+
+'Nothing' means the card is somewhere that cannot be switched, in which case it
+should get no ability at all rather than one keyed to every switch on the map.
+-}
+switchedWindowFor :: Placement -> Maybe WindowMatcher
+switchedWindowFor = \case
+  AtLocation lid -> Just $ ScenarioEvent #after Nothing (switchedEventFor lid)
+  AttachedToLocation lid -> Just $ ScenarioEvent #after Nothing (switchedEventFor lid)
+  InThreatArea iid ->
+    Just $ ScenarioEvent #after (Just $ InvestigatorWithId iid) switchedEventForInvestigator
+  _ -> Nothing
+
+-- | Is this window key @switched@ or one of its narrower @switched[...]@ companions?
+isSwitchedEvent :: Text -> Bool
+isSwitchedEvent key = key == switchedEvent || (switchedEvent <> "[") `isPrefixOf` key
+
+{- | Announce a switch. Every key in the family carries the same payload — the
+two locations that traded places — so a card can match the narrowest window that
+fits its printed text and still read the details with 'getSwitchedLocations'.
+-}
+checkSwitchedWindows :: ReverseQueue m => LocationId -> LocationId -> m ()
+checkSwitchedWindows a b = do
+  iids <- select $ InvestigatorAt (mapOneOf LocationWithId [a, b])
+  let payload = toJSON (a, b)
+  checkWindows
+    $ [ Window.mkAfter $ Window.ScenarioEvent key Nothing payload
+      | key <- [switchedEvent, switchedEventFor a, switchedEventFor b]
+      ]
+    <> [ Window.mkAfter $ Window.ScenarioEvent switchedEventForInvestigator (Just iid) payload
+       | iid <- iids
+       ]
+
 getSwitchedLocations :: [Window.Window] -> Maybe (LocationId, LocationId)
 getSwitchedLocations = \case
-  (Window.windowType -> Window.ScenarioEvent k _ v) : _ | k == switchedEvent -> Just (toResult v)
+  (Window.windowType -> Window.ScenarioEvent k _ v) : _ | isSwitchedEvent k -> Just (toResult v)
   _ : rest -> getSwitchedLocations rest
   [] -> Nothing
 
@@ -586,22 +669,44 @@ facedownEnemiesOf = EnemyWithPlacement . FacedownInThreatArea
 getFacedownEnemies :: HasGame m => InvestigatorId -> m [EnemyId]
 getFacedownEnemies = select . facedownEnemiesOf
 
--- | Every face-down card in the threat area, treacheries and enemies alike.
+facedownAssetsOf :: InvestigatorId -> AssetMatcher
+facedownAssetsOf = AssetWithPlacement . FacedownInThreatArea
+
+getFacedownAssets :: HasGame m => InvestigatorId -> m [AssetId]
+getFacedownAssets = select . facedownAssetsOf
+
+-- | Every face-down card in the threat area, regardless of its card type.
 getFacedownCardCount :: HasGame m => InvestigatorId -> m Int
 getFacedownCardCount iid =
-  (+) <$> selectCount (facedownInThreatAreaOf iid) <*> selectCount (facedownEnemiesOf iid)
+  sum
+    <$> sequence
+      [ selectCount (facedownInThreatAreaOf iid)
+      , selectCount (facedownEnemiesOf iid)
+      , selectCount (facedownAssetsOf iid)
+      ]
 
 -- | "Place the top card of the encounter deck into your threat area, face-down."
+placeCardFacedownInThreatArea :: ReverseQueue m => InvestigatorId -> Card -> m ()
+placeCardFacedownInThreatArea iid card = case toCardType card of
+  EnemyType -> push =<< Msg.createEnemyWithPlacement_ card placement
+  AssetType -> push =<< Msg.createAssetAt_ card placement
+  _ -> createTreacheryAt_ card placement
+ where
+  placement = FacedownInThreatArea iid
+
+placeCardsFacedownEvenly :: ReverseQueue m => [InvestigatorId] -> [Card] -> m ()
+placeCardsFacedownEvenly investigators cards = unless (null investigators) do
+  shuffled <- shuffle cards
+  for_ (zip shuffled $ cycleN (length shuffled) investigators) \(card, iid) ->
+    placeCardFacedownInThreatArea iid card
+
 placeFacedownInThreatArea :: ReverseQueue m => InvestigatorId -> Int -> m ()
 placeFacedownInThreatArea iid n = replicateM_ n do
   getEncounterDeck >>= \case
     Deck [] -> pure ()
     Deck (card : rest) -> do
       setEncounterDeck (Deck rest)
-      let c = toCard card
-      if toCardType c == EnemyType
-        then push =<< Msg.createEnemyWithPlacement_ c (FacedownInThreatArea iid)
-        else createTreacheryAt_ c (FacedownInThreatArea iid)
+      placeCardFacedownInThreatArea iid (toCard card)
 
 {- | "Draw a face-down encounter card in your threat area" — the card leaves the
 face-down zone and resolves as if just drawn.
@@ -648,7 +753,63 @@ drawFacedownEnemy iid eid = do
   checkAfter $ Window.ScenarioEvent facedownDrawnEvent (Just iid) (toJSON eid)
   Msg.pushAll [InvestigatorDrawEnemy iid eid, Revelation iid (EnemySource eid)]
 
+{- | Encounter assets such as Erwin Simmons can also be among the face-down
+cards. Remove the hidden asset entity, then resolve its card as a fresh
+encounter draw so its revelation creates the normal in-play asset.
+-}
+drawFacedownAsset :: ReverseQueue m => InvestigatorId -> AssetId -> m ()
+drawFacedownAsset iid aid = do
+  card <- field AssetCard aid
+  checkAfter $ Window.ScenarioEvent facedownDrawnEvent (Just iid) (toJSON aid)
+  removeAsset aid
+  push $ Revelation iid (CardIdSource card.id)
+
+data FacedownEncounterCard
+  = FacedownTreachery TreacheryId
+  | FacedownEnemy EnemyId
+  | FacedownAsset AssetId
+  deriving stock (Show, Eq)
+
+getFacedownEncounterCards :: HasGame m => InvestigatorId -> m [FacedownEncounterCard]
+getFacedownEncounterCards iid =
+  concat
+    <$> sequence
+      [ map FacedownTreachery <$> getFacedownCards iid
+      , map FacedownEnemy <$> getFacedownEnemies iid
+      , map FacedownAsset <$> getFacedownAssets iid
+      ]
+
+drawFacedownEncounterCard :: ReverseQueue m => InvestigatorId -> FacedownEncounterCard -> m ()
+drawFacedownEncounterCard iid = \case
+  FacedownTreachery tid -> drawFacedownCard iid tid
+  FacedownEnemy eid -> drawFacedownEnemy iid eid
+  FacedownAsset aid -> drawFacedownAsset iid aid
+
+-- | Randomly draw one face-down encounter card. Returns whether a card existed.
+drawRandomFacedownCard :: ReverseQueue m => InvestigatorId -> m Bool
+drawRandomFacedownCard iid = do
+  cards <- getFacedownEncounterCards iid
+  case nonEmpty cards of
+    Nothing -> pure False
+    Just cards' -> do
+      drawFacedownEncounterCard iid =<< sample cards'
+      pure True
+
+drawFacedownCards :: ReverseQueue m => InvestigatorId -> Int -> m ()
+drawFacedownCards iid n = replicateM_ n $ void $ drawRandomFacedownCard iid
+
 drawAllFacedownCards :: ReverseQueue m => InvestigatorId -> m ()
-drawAllFacedownCards iid = do
-  getFacedownCards iid >>= traverse_ (drawFacedownCard iid)
-  getFacedownEnemies iid >>= traverse_ (drawFacedownEnemy iid)
+drawAllFacedownCards iid =
+  getFacedownEncounterCards iid >>= traverse_ (drawFacedownEncounterCard iid)
+
+-- ** The [[Avatar]] children (Public School 187) ** --
+
+{- | Alma, David, Tilde and William each print "If The BOOGEYMAN is at the
+location above or below <name>'s location", i.e. directly above or below on the
+grid — not connected, and not the same location.
+-}
+boogeymanAboveOrBelow :: AssetId -> Criterion
+boogeymanAboveOrBelow aid =
+  exists
+    $ mapOneOf (\d -> LocationInDirection d (locationWithAsset aid)) [Above, Below]
+    <> LocationWithEnemy (enemyIs Enemies.theBOOGEYMAN)
